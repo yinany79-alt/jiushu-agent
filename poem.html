@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>墨韵诗笺 - 古诗词鉴赏</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f5f0e8;
+      --bg-dark: #e8e0d4;
+      --fg: #2c2416;
+      --muted: #6b5c4c;
+      --accent: #8b3a3a;
+      --accent-soft: #c48080;
+      --ink: #1a1814;
+      --ink-wash: #3d3830;
+      --gold: #b8965a;
+      --jade: #4a6670;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Noto Serif SC', serif;
+      background: var(--bg);
+      color: var(--fg);
+      overflow-x: hidden;
+      line-height: 1.8;
+    }
+
+    .title-font {
+      font-family: 'ZCOOL XiaoWei', serif;
+    }
+
+    /* 纸张纹理背景 */
+    .paper-texture {
+      background-image: 
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    }
+
+    /* 水墨晕染效果 */
+    .ink-wash {
+      position: relative;
+    }
+
+    .ink-wash::before {
+      content: '';
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(ellipse at center, rgba(26, 24, 20, 0.08) 0%, transparent 70%);
+      border-radius: 50%;
+      filter: blur(40px);
+      pointer-events: none;
+    }
+
+    /* 诗句动画 */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes brushStroke {
+      from {
+        clip-path: inset(0 100% 0 0);
+      }
+      to {
+        clip-path: inset(0 0 0 0);
+      }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    @keyframes inkDrop {
+      0% {
+        transform: scale(0);
+        opacity: 0.8;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 0;
+      }
+    }
+
+    .animate-fade-in {
+      animation: fadeInUp 1s ease-out forwards;
+    }
+
+    .animate-brush {
+      animation: brushStroke 1.5s ease-out forwards;
+    }
+
+    .animate-float {
+      animation: float 6s ease-in-out infinite;
+    }
+
+    .delay-100 { animation-delay: 0.1s; }
+    .delay-200 { animation-delay: 0.2s; }
+    .delay-300 { animation-delay: 0.3s; }
+    .delay-400 { animation-delay: 0.4s; }
+    .delay-500 { animation-delay: 0.5s; }
+
+    /* 滚动显示 */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .reveal.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* 墨点粒子 */
+    #ink-particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* 导航 */
+    nav {
+      backdrop-filter: blur(10px);
+      background: rgba(245, 240, 232, 0.85);
+    }
+
+    nav a {
+      position: relative;
+    }
+
+    nav a::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 50%;
+      width: 0;
+      height: 1px;
+      background: var(--accent);
+      transition: all 0.3s ease;
+      transform: translateX(-50%);
+    }
+
+    nav a:hover::after {
+      width: 100%;
+    }
+
+    /* 诗词卡片 */
+    .poem-card {
+      position: relative;
+      background: linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(245,240,232,0.8) 100%);
+      border: 1px solid rgba(107, 92, 76, 0.15);
+      transition: all 0.4s ease;
+    }
+
+    .poem-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, transparent 0%, rgba(139, 58, 58, 0.03) 100%);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .poem-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(44, 36, 22, 0.1);
+    }
+
+    .poem-card:hover::before {
+      opacity: 1;
+    }
+
+    /* 印章效果 */
+    .seal {
+      width: 48px;
+      height: 48px;
+      border: 2px solid var(--accent);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-size: 14px;
+      transform: rotate(-5deg);
+      opacity: 0.8;
+    }
+
+    /* 竖排文字 */
+    .vertical-text {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+    }
+
+    /* 分隔线 */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--muted), transparent);
+      opacity: 0.3;
+    }
+
+    /* 涟漪效果 */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(139, 58, 58, 0.15);
+      animation: inkDrop 1s ease-out forwards;
+      pointer-events: none;
+    }
+
+    /* 分类标签 */
+    .category-tag {
+      display: inline-block;
+      padding: 4px 16px;
+      border: 1px solid currentColor;
+      font-size: 12px;
+      letter-spacing: 2px;
+      transition: all 0.3s ease;
+    }
+
+    .category-tag:hover {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+
+    /* 按钮 */
+    .btn-ink {
+      position: relative;
+      padding: 12px 32px;
+      background: transparent;
+      border: 1px solid var(--fg);
+      color: var(--fg);
+      font-family: inherit;
+      font-size: 14px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      overflow: hidden;
+      transition: all 0.4s ease;
+    }
+
+    .btn-ink::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: var(--ink);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: all 0.5s ease;
+    }
+
+    .btn-ink:hover {
+      color: var(--bg);
+      border-color: var(--ink);
+    }
+
+    .btn-ink:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+
+    .btn-ink span {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2.5rem !important;
+      }
+      
+      .vertical-text {
+        writing-mode: horizontal-tb;
+      }
+    }
+
+    /* 减少动画 */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* 焦点样式 */
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* 滚动条 */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--muted);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="paper-texture">
+  <!-- 墨点粒子画布 -->
+  <canvas id="ink-particles" aria-hidden="true"></canvas>
+
+  <!-- 导航 -->
+  <nav class="fixed top-0 left-0 right-0 z-50 py-4 px-6 md:px-12">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <a href="#" class="title-font text-xl tracking-widest" style="color: var(--ink);">墨韵诗笺</a>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="#poems" class="text-sm tracking-wider" style="color: var(--muted);">诗词</a>
+        <a href="#poets" class="text-sm tracking-wider" style="color: var(--muted);">诗人</a>
+        <a href="#themes" class="text-sm tracking-wider" style="color: var(--muted);">意象</a>
+        <a href="#about" class="text-sm tracking-wider" style="color: var(--muted);">关于</a>
+      </div>
+      <button id="menu-btn" class="md:hidden p-2" aria-label="菜单">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- 首屏 -->
+  <section class="min-h-screen relative flex items-center justify-center overflow-hidden">
+    <!-- 背景水墨 -->
+    <div class="absolute inset-0 overflow-hidden">
+      <div class="absolute top-1/4 -left-20 w-96 h-96 rounded-full opacity-20" 
+           style="background: radial-gradient(ellipse, var(--ink) 0%, transparent 70%); filter: blur(60px);"></div>
+      <div class="absolute bottom-1/4 -right-20 w-80 h-80 rounded-full opacity-15" 
+           style="background: radial-gradient(ellipse, var(--jade) 0%, transparent 70%); filter: blur(50px);"></div>
+    </div>
+
+    <div class="relative z-10 text-center px-6 max-w-4xl mx-auto">
+      <!-- 竖排诗句 -->
+      <div class="absolute left-8 top-1/2 -translate-y-1/2 hidden lg:block">
+        <p class="vertical-text text-sm tracking-widest opacity-40 animate-fade-in delay-500" style="color: var(--muted);">
+          窗前明月光，疑是地上霜
+        </p>
+      </div>
+
+      <div class="absolute right-8 top-1/2 -translate-y-1/2 hidden lg:block">
+        <p class="vertical-text text-sm tracking-widest opacity-40 animate-fade-in delay-500" style="color: var(--muted);">
+          举头望明月，低头思故乡
+        </p>
+      </div>
+
+      <!-- 主标题 -->
+      <p class="text-sm tracking-[0.3em] mb-6 animate-fade-in" style="color: var(--muted);">
+        千年诗意，一纸风华
+      </p>
+      
+      <h1 class="title-font hero-title text-5xl md:text-7xl lg:text-8xl mb-8 animate-fade-in delay-100" 
+          style="color: var(--ink); letter-spacing: 0.1em;">
+        闺怨
+      </h1>
+
+      <div class="w-16 h-px mx-auto mb-8 animate-fade-in delay-200" style="background: var(--accent);"></div>
+
+      <p class="text-lg md:text-xl leading-relaxed mb-4 animate-fade-in delay-300" style="color: var(--ink-wash);">
+        闺中少妇不知愁，春日凝妆上翠楼
+      </p>
+      <p class="text-lg md:text-xl leading-relaxed mb-12 animate-fade-in delay-400" style="color: var(--ink-wash);">
+        忽见陌头杨柳色，悔教夫婿觅封侯
+      </p>
+
+      <p class="text-sm tracking-wider mb-8 animate-fade-in delay-500" style="color: var(--muted);">
+        —— 王昌龄《闺怨》
+      </p>
+
+      <a href="#poems" class="btn-ink animate-fade-in delay-500">
+        <span>探索诗词</span>
+      </a>
+    </div>
+
+    <!-- 向下滚动提示 -->
+    <div class="absolute bottom-12 left-1/2 -translate-x-1/2 animate-float">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.4">
+        <path d="M12 5v14M5 12l7 7 7-7"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 诗词展示 -->
+  <section id="poems" class="py-24 px-6">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16 reveal">
+        <p class="text-sm tracking-[0.3em] mb-4" style="color: var(--accent);">POETRY COLLECTION</p>
+        <h2 class="title-font text-3xl md:text-4xl mb-6" style="color: var(--ink);">诗词精选</h2>
+        <div class="divider w-24 mx-auto"></div>
+      </div>
+
+      <!-- 分类标签 -->
+      <div class="flex flex-wrap justify-center gap-4 mb-12 reveal">
+        <button class="category-tag" style="color: var(--accent);" data-category="all">全部</button>
+        <button class="category-tag" style="color: var(--muted);" data-category="boudoir">闺怨</button>
+        <button class="category-tag" style="color: var(--muted);" data-category="longing">相思</button>
+        <button class="category-tag" style="color: var(--muted);" data-category="nostalgia">思乡</button>
+        <button class="category-tag" style="color: var(--muted);" data-category="nature">山水</button>
+      </div>
+
+      <!-- 诗词卡片网格 -->
+      <div id="poems-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- 诗词卡片由JS渲染 -->
+      </div>
+    </div>
+  </section>
+
+  <!-- 诗人介绍 -->
+  <section id="poets" class="py-24 px-6" style="background: var(--bg-dark);">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16 reveal">
+        <p class="text-sm tracking-[0.3em] mb-4" style="color: var(--accent);">POETS</p>
+        <h2 class="title-font text-3xl md:text-4xl mb-6" style="color: var(--ink);">风雅诗人</h2>
+        <div class="divider w-24 mx-auto"></div>
+      </div>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <!-- 诗人卡片 -->
+        <div class="poem-card p-8 text-center reveal" data-delay="0">
+          <div class="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center" 
+               style="background: linear-gradient(135deg, var(--accent-soft), var(--accent)); opacity: 0.8;">
+            <span class="title-font text-2xl" style="color: var(--bg);">李</span>
+          </div>
+          <h3 class="title-font text-xl mb-2" style="color: var(--ink);">李白</h3>
+          <p class="text-sm mb-4" style="color: var(--muted);">诗仙</p>
+          <p class="text-sm leading-relaxed" style="color: var(--ink-wash);">
+            701年—762年，字太白，号青莲居士。其诗豪放飘逸，想象丰富。
+          </p>
+          <div class="seal mx-auto mt-6">太白</div>
+        </div>
+
+        <div class="poem-card p-8 text-center reveal" data-delay="100">
+          <div class="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center" 
+               style="background: linear-gradient(135deg, var(--jade), #2d4a54); opacity: 0.8;">
+            <span class="title-font text-2xl" style="color: var(--bg);">杜</span>
+          </div>
+          <h3 class="title-font text-xl mb-2" style="color: var(--ink);">杜甫</h3>
+          <p class="text-sm mb-4" style="color: var(--muted);">诗圣</p>
+          <p class="text-sm leading-relaxed" style="color: var(--ink-wash);">
+            712年—770年，字子美，自号少陵野老。其诗沉郁顿挫，忧国忧民。
+          </p>
+          <div class="seal mx-auto mt-6">子美</div>
+        </div>
+
+        <div class="poem-card p-8 text-center reveal" data-delay="200">
+          <div class="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center" 
+               style="background: linear-gradient(135deg, var(--gold), #8a6d3b); opacity: 0.8;">
+            <span class="title-font text-2xl" style="color: var(--bg);">李</span>
+          </div>
+          <h3 class="title-font text-xl mb-2" style="color: var(--ink);">李清照</h3>
+          <p class="text-sm mb-4" style="color: var(--muted);">易安居士</p>
+          <p class="text-sm leading-relaxed" style="color: var(--ink-wash);">
+            1084年—1155年，号易安居士。婉约词派代表，词作清丽婉转。
+          </p>
+          <div class="seal mx-auto mt-6">易安</div>
+        </div>
+
+        <div class="poem-card p-8 text-center reveal" data-delay="300">
+          <div class="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center" 
+               style="background: linear-gradient(135deg, #7a5c5c, var(--accent)); opacity: 0.8;">
+            <span class="title-font text-2xl" style="color: var(--bg);">苏</span>
+          </div>
+          <h3 class="title-font text-xl mb-2" style="color: var(--ink);">苏轼</h3>
+          <p class="text-sm mb-4" style="color: var(--muted);">东坡居士</p>
+          <p class="text-sm leading-relaxed" style="color: var(--ink-wash);">
+            1037年—1101年，字子瞻，号东坡居士。豪放词派开创者。
+          </p>
+          <div class="seal mx-auto mt-6">东坡</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 意象展示 -->
+  <section id="themes" class="py-24 px-6">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16 reveal">
+        <p class="text-sm tracking-[0.3em] mb-4" style="color: var(--accent);">IMAGERY</p>
+        <h2 class="title-font text-3xl md:text-4xl mb-6" style="color: var(--ink);">诗中意象</h2>
+        <div class="divider w-24 mx-auto"></div>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-8">
+        <!-- 意象卡片 -->
+        <div class="relative group overflow-hidden reveal">
+          <div class="aspect-[4/5] relative">
+            <div class="absolute inset-0" 
+                 style="background: linear-gradient(180deg, transparent 40%, rgba(26,24,20,0.8) 100%);"></div>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <svg width="80" height="80" viewBox="0 0 100 100" fill="none" stroke="currentColor" 
+                   stroke-width="0.5" class="opacity-20 group-hover:opacity-40 transition-opacity"
+                   style="color: var(--accent-soft);">
+                <circle cx="50" cy="50" r="45"/>
+                <circle cx="50" cy="50" r="35"/>
+                <circle cx="50" cy="50" r="25"/>
+              </svg>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 p-8">
+              <h3 class="title-font text-2xl mb-2" style="color: var(--bg);">明月</h3>
+              <p class="text-sm opacity-80" style="color: var(--bg-dark);">
+                举杯邀明月，对影成三人
+              </p>
+              <p class="text-xs mt-2 opacity-60" style="color: var(--bg-dark);">收录 286 首</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="relative group overflow-hidden reveal" data-delay="100">
+          <div class="aspect-[4/5] relative">
+            <div class="absolute inset-0" 
+                 style="background: linear-gradient(180deg, transparent 40%, rgba(26,24,20,0.8) 100%);"></div>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <svg width="80" height="80" viewBox="0 0 100 100" fill="none" stroke="currentColor" 
+                   stroke-width="0.5" class="opacity-20 group-hover:opacity-40 transition-opacity"
+                   style="color: var(--jade);">
+                <path d="M50 10 Q30 30 50 50 Q70 70 50 90"/>
+                <path d="M50 10 Q70 30 50 50 Q30 70 50 90"/>
+              </svg>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 p-8">
+              <h3 class="title-font text-2xl mb-2" style="color: var(--bg);">杨柳</h3>
+              <p class="text-sm opacity-80" style="color: var(--bg-dark);">
+                渭城朝雨浥轻尘，客舍青青柳色新
+              </p>
+              <p class="text-xs mt-2 opacity-60" style="color: var(--bg-dark);">收录 198 首</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="relative group overflow-hidden reveal" data-delay="200">
+          <div class="aspect-[4/5] relative">
+            <div class="absolute inset-0" 
+                 style="background: linear-gradient(180deg, transparent 40%, rgba(26,24,20,0.8) 100%);"></div>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <svg width="80" height="80" viewBox="0 0 100 100" fill="none" stroke="currentColor" 
+                   stroke-width="0.5" class="opacity-20 group-hover:opacity-40 transition-opacity"
+                   style="color: var(--accent);">
+                <path d="M50 20 L50 80"/>
+                <path d="M30 40 Q50 50 70 40"/>
+                <path d="M35 55 Q50 65 65 55"/>
+              </svg>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 p-8">
+              <h3 class="title-font text-2xl mb-2" style="color: var(--bg);">梧桐</h3>
+              <p class="text-sm opacity-80" style="color: var(--bg-dark);">
+                梧桐更兼细雨，到黄昏点点滴滴
+              </p>
+              <p class="text-xs mt-2 opacity-60" style="color: var(--bg-dark);">收录 124 首</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 诗词详情弹窗 -->
+  <div id="poem-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-6" 
+       style="background: rgba(26,24,20,0.8); backdrop-filter: blur(8px);">
+    <div class="relative max-w-2xl w-full max-h-[90vh] overflow-auto p-8 md:p-12" 
+         style="background: var(--bg);">
+      <button id="close-modal" class="absolute top-4 right-4 p-2" aria-label="关闭">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+      <div id="modal-content">
+        <!-- 内容由JS填充 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 关于 -->
+  <section id="about" class="py-24 px-6" style="background: var(--ink);">
+    <div class="max-w-4xl mx-auto text-center">
+      <div class="reveal">
+        <p class="text-sm tracking-[0.3em] mb-4" style="color: var(--accent-soft);">ABOUT</p>
+        <h2 class="title-font text-3xl md:text-4xl mb-8" style="color: var(--bg);">关于墨韵诗笺</h2>
+      </div>
+      
+      <div class="divider w-24 mx-auto mb-12 reveal" style="background: var(--muted);"></div>
+      
+      <p class="text-lg leading-relaxed mb-8 reveal" style="color: var(--bg-dark);">
+        墨韵诗笺，一方承载千年诗意的数字庭院。我们精心整理唐宋诗词，以现代设计诠释古典美学，
+        让每一首诗词都如墨滴宣纸，晕染开来，诉说那些关于相思、离别、山水与人生的故事。
+      </p>
+      
+      <p class="text-base leading-relaxed mb-12 reveal" style="color: var(--muted);">
+        在这里，你可以品味闺中少妇的幽怨情思，感受边塞将士的壮志豪情，
+        亦可在山水田园间寻得一方宁静。诗词之美，在于言有尽而意无穷。
+      </p>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 reveal">
+        <a href="#poems" class="btn-ink" style="border-color: var(--bg); color: var(--bg);">
+          <span>开始探索</span>
+        </a>
+        <a href="#" class="px-8 py-3 text-sm tracking-wider transition-opacity hover:opacity-70" 
+           style="color: var(--bg-dark);">
+          了解更多
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 页脚 -->
+  <footer class="py-12 px-6" style="background: var(--ink); border-top: 1px solid rgba(107,92,76,0.3);">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+        <div class="text-center md:text-left">
+          <p class="title-font text-xl tracking-widest mb-2" style="color: var(--bg);">墨韵诗笺</p>
+          <p class="text-sm" style="color: var(--muted);">千年诗意，一纸风华</p>
+        </div>
+        
+        <div class="flex items-center gap-8">
+          <a href="#" class="text-sm transition-colors hover:text-[var(--bg)]" style="color: var(--muted);">诗词</a>
+          <a href="#" class="text-sm transition-colors hover:text-[var(--bg)]" style="color: var(--muted);">诗人</a>
+          <a href="#" class="text-sm transition-colors hover:text-[var(--bg)]" style="color: var(--muted);">意象</a>
+        </div>
+        
+        <p class="text-sm" style="color: var(--muted);">诗词数据来源于网络</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // 诗词数据
+    const poemsData = [
+      {
+        id: 1,
+        title: "如梦令",
+        author: "李清照",
+        dynasty: "宋",
+        category: "boudoir",
+        content: ["昨夜雨疏风骤", "浓睡不消残酒", "试问卷帘人", "却道海棠依旧", "知否，知否", "应是绿肥红瘦"],
+        appreciation: "此词借宿酒醒后问花事的描写，曲折含蓄地表达了女词人的惜花伤春之情，更寓意着对青春易逝的感慨。"
+      },
+      {
+        id: 2,
+        title: "声声慢",
+        author: "李清照",
+        dynasty: "宋",
+        category: "longing",
+        content: ["寻寻觅觅，冷冷清清", "凄凄惨惨戚戚", "乍暖还寒时候", "最难将息", "三杯两盏淡酒", "怎敌他、晚来风急"],
+        appreciation: "开篇十四个叠字，层层递进，将词人孤寂愁苦的心境渲染得淋漓尽致，堪称千古绝唱。"
+      },
+      {
+        id: 3,
+        title: "闺怨",
+        author: "王昌龄",
+        dynasty: "唐",
+        category: "boudoir",
+        content: ["闺中少妇不知愁", "春日凝妆上翠楼", "忽见陌头杨柳色", "悔教夫婿觅封侯"],
+        appreciation: "此诗抓住闺中少妇心理变化的微妙刹那，以'悔'字点睛，道尽离人相思之苦。"
+      },
+      {
+        id: 4,
+        title: "望月怀远",
+        author: "张九龄",
+        dynasty: "唐",
+        category: "nostalgia",
+        content: ["海上生明月", "天涯共此时", "情人怨遥夜", "竟夕起相思", "灭烛怜光满", "披衣觉露滋"],
+        appreciation: "全诗以明月为线索，将相思之情写得缠绵悱恻，意境开阔而情感深沉。"
+      },
+      {
+        id: 5,
+        title: "蝶恋花",
+        author: "柳永",
+        dynasty: "宋",
+        category: "longing",
+        content: ["伫倚危楼风细细", "望极春愁", "黯黯生天际", "草色烟光残照里", "无言谁会凭阑意"],
+        appreciation: "词人独上高楼，极目远眺，将相思之苦融入暮春景色，情景交融，意境深远。"
+      },
+      {
+        id: 6,
+        title: "山居秋暝",
+        author: "王维",
+        dynasty: "唐",
+        category: "nature",
+        content: ["空山新雨后", "天气晚来秋", "明月松间照", "清泉石上流", "竹喧归浣女", "莲动下渔舟"],
+        appreciation: "此诗描绘了秋雨初晴后傍晚时分山村的旖旎风光和山居村民的淳朴风尚，表现了诗人寄情山水的高洁情怀。"
+      }
+    ];
+
+    // DOM 元素
+    const canvas = document.getElementById('ink-particles');
+    const ctx = canvas.getContext('2d');
+    const poemsGrid = document.getElementById('poems-grid');
+    const modal = document.getElementById('poem-modal');
+    const modalContent = document.getElementById('modal-content');
+    const closeModalBtn = document.getElementById('close-modal');
+    const categoryBtns = document.querySelectorAll('.category-tag');
+
+    // 粒子系统
+    let particles = [];
+    let animationId = null;
+
+    function initCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = -10;
+        this.size = Math.random() * 3 + 1;
+        this.speedY = Math.random() * 0.5 + 0.2;
+        this.speedX = (Math.random() - 0.5) * 0.3;
+        this.opacity = Math.random() * 0.3 + 0.1;
+        this.rotation = Math.random() * Math.PI * 2;
+        this.rotationSpeed = (Math.random() - 0.5) * 0.02;
+      }
+
+      update() {
+        this.y += this.speedY;
+        this.x += this.speedX;
+        this.rotation += this.rotationSpeed;
+
+        if (this.y > canvas.height + 10) {
+          this.reset();
+        }
+      }
+
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
+        ctx.globalAlpha = this.opacity;
+        ctx.fillStyle = '#2c2416';
+        
+        // 绘制墨点形状
+        ctx.beginPath();
+        const size = Math.max(0.5, this.size);
+        ctx.ellipse(0, 0, size, size * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
+      }
+    }
+
+    function createParticles() {
+      const count = Math.min(50, Math.floor(window.innerWidth / 30));
+      particles = [];
+      for (let i = 0; i < count; i++) {
+        const p = new Particle();
+        p.y = Math.random() * canvas.height;
+        particles.push(p);
+      }
+    }
+
+    function animateParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      
+      animationId = requestAnimationFrame(animateParticles);
+    }
+
+    // 渲染诗词卡片
+    function renderPoems(category = 'all') {
+      const filtered = category === 'all' 
+        ? poemsData 
+        : poemsData.filter(p => p.category === category);
+      
+      poemsGrid.innerHTML = filtered.map((poem, index) => `
+        <article class="poem-card p-8 cursor-pointer reveal" data-id="${poem.id}" data-delay="${index * 100}" tabindex="0" role="button" aria-label="查看${poem.title}详情">
+          <div class="flex items-start justify-between mb-6">
+            <div>
+              <h3 class="title-font text-xl mb-1" style="color: var(--ink);">${poem.title}</h3>
+              <p class="text-sm" style="color: var(--muted);">${poem.dynasty} · ${poem.author}</p>
+            </div>
+            <div class="seal">${poem.author.charAt(0)}</div>
+          </div>
+          <div class="space-y-2">
+            ${poem.content.slice(0, 4).map(line => `
+              <p class="text-sm leading-relaxed" style="color: var(--ink-wash);">${line}</p>
+            `).join('')}
+            ${poem.content.length > 4 ? `<p class="text-sm" style="color: var(--muted);">...</p>` : ''}
+          </div>
+          <div class="mt-6 pt-4" style="border-top: 1px solid rgba(107,92,76,0.15);">
+            <p class="text-xs tracking-wider" style="color: var(--accent);">点击展开赏析</p>
+          </div>
+        </article>
+      `).join('');
+
+      // 重新绑定事件
+      bindPoemCards();
+      observeElements();
+    }
+
+    // 绑定诗词卡片事件
+    function bindPoemCards() {
+      document.querySelectorAll('.poem-card[data-id]').forEach(card => {
+        const handler = () => {
+          const id = parseInt(card.dataset.id);
+          const poem = poemsData.find(p => p.id === id);
+          if (poem) openModal(poem);
+        };
+        
+        card.addEventListener('click', handler);
+        card.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handler();
+          }
+        });
+      });
+    }
+
+    // 打开弹窗
+    function openModal(poem) {
+      modalContent.innerHTML = `
+        <div class="text-center mb-8">
+          <h2 class="title-font text-3xl md:text-4xl mb-2" style="color: var(--ink);">${poem.title}</h2>
+          <p class="text-sm" style="color: var(--muted);">${poem.dynasty} · ${poem.author}</p>
+        </div>
+        
+        <div class="divider w-16 mx-auto mb-8"></div>
+        
+        <div class="text-center mb-8">
+          ${poem.content.map(line => `
+            <p class="text-lg leading-loose" style="color: var(--ink-wash);">${line}</p>
+          `).join('')}
+        </div>
+        
+        <div class="p-6 rounded" style="background: rgba(107,92,76,0.08);">
+          <p class="text-sm font-medium mb-2" style="color: var(--accent);">赏析</p>
+          <p class="text-sm leading-relaxed" style="color: var(--ink-wash);">${poem.appreciation}</p>
+        </div>
+      `;
+      
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+      
+      // 焦点管理
+      closeModalBtn.focus();
+    }
+
+    // 关闭弹窗
+    function closeModal() {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.style.overflow = '';
+    }
+
+    // 分类切换
+    function handleCategoryClick(e) {
+      const category = e.target.dataset.category;
+      if (!category) return;
+      
+      categoryBtns.forEach(btn => {
+        btn.style.color = btn.dataset.category === category ? 'var(--accent)' : 'var(--muted)';
+      });
+      
+      renderPoems(category);
+    }
+
+    // 滚动显示
+    function observeElements() {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const delay = entry.target.dataset.delay || 0;
+            setTimeout(() => {
+              entry.target.classList.add('active');
+            }, parseInt(delay));
+          }
+        });
+      }, { threshold: 0.1 });
+
+      document.querySelectorAll('.reveal').forEach(el => {
+        observer.observe(el);
+      });
+    }
+
+    // 点击涟漪效果
+    function createRipple(e, element) {
+      const ripple = document.createElement('span');
+      ripple.classList.add('ripple');
+      
+      const rect = element.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = e.clientX - rect.left - size / 2 + 'px';
+      ripple.style.top = e.clientY - rect.top - size / 2 + 'px';
+      
+      element.appendChild(ripple);
+      
+      setTimeout(() => ripple.remove(), 1000);
+    }
+
+    // 初始化
+    function init() {
+      initCanvas();
+      createParticles();
+      
+      // 检查减少动画偏好
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      
+      if (!prefersReducedMotion) {
+        animateParticles();
+      }
+      
+      renderPoems();
+      observeElements();
+
+      // 事件监听
+      window.addEventListener('resize', () => {
+        initCanvas();
+        createParticles();
+      });
+
+      closeModalBtn.addEventListener('click', closeModal);
+      
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+          closeModal();
+        }
+      });
+
+      categoryBtns.forEach(btn => {
+        btn.addEventListener('click', handleCategoryClick);
+      });
+
+      // 涟漪效果
+      document.querySelectorAll('.btn-ink').forEach(btn => {
+        btn.addEventListener('click', (e) => createRipple(e, btn));
+      });
+    }
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

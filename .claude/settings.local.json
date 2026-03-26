@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p .tmp)",
+      "Bash(mv .joycode agentic.md .tmp/)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --yes)",
+      "Bash(rm -rf .joycode)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --yes --force)",
+      "Bash(npm install:*)",
+      "Bash(npm cache:*)",
+      "Bash(sudo chown:*)",
+      "Bash(mkdir -p /Users/yangyinan.8/jiushu_agent/public)",
+      "Bash(cp \"/Users/yangyinan.8/jiushu_agent/logo -单独.svg\" /Users/yangyinan.8/jiushu_agent/public/logo.svg)"
+    ]
+  }
+}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Bot, User, Sparkles, Zap, Paperclip, X, ArrowUp, Lightbulb } from "lucide-react";
+import { Bot, User, Sparkles, Zap, Paperclip, X, ArrowUp, Lightbulb, StopCircle } from "lucide-react";
 import { clsx } from "clsx";
+import { Markdown } from "@/components/markdown";
 
 type Mode = "qa" | "action";
 
@@ -11,6 +12,8 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   files?: FileItem[];
+  isStreaming?: boolean;
+  fullContent?: string;
 }
 
 interface FileItem {
@@ -26,8 +29,12 @@ export function Chatbox() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const hasMessages = messages.length > 0;
 
@@ -45,9 +52,66 @@ export function Chatbox() {
     setFiles((prev) => prev.filter((f) => f.id !== fileId));
   };
 
-  const handleSend = (e: React.FormEvent) => {
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    setIsLoading(false);
+    setIsTyping(false);
+    setMessages((prev) =>
+      prev.map((msg) => ({
+        ...msg,
+        isStreaming: false,
+        content: msg.fullContent || msg.content,
+      }))
+    );
+  };
+
+  const startTypingEffect = (msgId: string, fullContent: string) => {
+    let index = 0;
+    setIsTyping(true);
+
+    const typeNextChar = () => {
+      if (index >= fullContent.length) {
+        setIsTyping(false);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === msgId
+              ? { ...msg, content: fullContent, isStreaming: false }
+              : msg
+          )
+        );
+        return;
+      }
+
+      const nextIndex = Math.min(index + 3, fullContent.length);
+      const currentContent = fullContent.slice(0, nextIndex);
+      index = nextIndex;
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === msgId ? { ...msg, content: currentContent } : msg
+        )
+      );
+
+      typingTimeoutRef.current = setTimeout(typeNextChar, 15);
+    };
+
+    typeNextChar();
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() && files.length === 0) return;
+    if (isLoading || isTyping) {
+      stopGeneration();
+      return;
+    }
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -56,21 +120,103 @@ export function Chatbox() {
       files: files.length > 0 ? files : undefined,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const assistantMsgId = (Date.now() + 1).toString();
+    const assistantMsg: Message = {
+      id: assistantMsgId,
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+    };
+
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setInput("");
     setFiles([]);
+    setIsLoading(true);
 
-    // 模拟回复
-    setTimeout(() => {
-      const assistantMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: mode === "action"
-          ? "收到！让我来帮你执行这个任务。我会调用相应的工具来完成操作。"
-          : "收到！让我来回答你的问题。在实际版本中，我会结合知识库给你更准确的回答。",
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-    }, 800);
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    try {
+      if (mode === "qa") {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userMsg.content }),
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) throw new Error("API request failed");
+
+        setIsLoading(false);
+
+        if (abortController.signal.aborted) return;
+
+        // 处理流式响应
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let receivedContent = '';
+
+        if (reader) {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (abortController.signal.aborted) break;
+
+              const chunk = decoder.decode(value, { stream: true });
+              receivedContent += chunk;
+
+              // 实时更新消息内容
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMsgId
+                    ? { ...msg, content: receivedContent }
+                    : msg
+                )
+              );
+            }
+          } finally {
+            reader.releaseLock();
+          }
+        }
+
+        // 标记流式结束
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? { ...msg, isStreaming: false, fullContent: receivedContent }
+              : msg
+          )
+        );
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        if (abortController.signal.aborted) return;
+        setIsLoading(false);
+        const fullContent = "收到！让我来帮你执行这个任务。我会调用相应的工具来完成操作。";
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? { ...msg, fullContent }
+              : msg
+          )
+        );
+        startTypingEffect(assistantMsgId, fullContent);
+      }
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        return;
+      }
+      console.error("Send error:", error);
+      setIsLoading(false);
+      setIsTyping(false);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMsgId
+            ? { ...msg, content: "抱歉，发生了错误，请稍后重试。", isStreaming: false }
+            : msg
+        )
+      );
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -112,7 +258,7 @@ export function Chatbox() {
                   {/* 消息气泡 */}
                   <div
                     className={clsx(
-                      "px-5 py-3.5 rounded-2xl max-w-[80%] shadow-soft",
+                      "px-5 py-3.5 rounded-2xl max-w-[80%] shadow-soft relative",
                       msg.role === "assistant"
                         ? (mode === "action" ? "bg-slate-800 text-slate-200 border border-slate-700" : "bg-white text-slate-800 border border-slate-200/70")
                         : "bg-gradient-to-r from-indigo-600 to-violet-600 text-white"
@@ -136,9 +282,16 @@ export function Chatbox() {
                         ))}
                       </div>
                     )}
-                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                      {msg.content}
-                    </pre>
+
+                    {/* 消息内容显示 */}
+                    {msg.content && (
+                      <Markdown content={msg.content} mode={mode} />
+                    )}
+
+                    {/* 流式输出指示器 */}
+                    {msg.role === "assistant" && msg.isStreaming && (
+                      <span className="inline-block w-1.5 h-4 ml-1 bg-indigo-500 animate-pulse align-middle rounded-sm" />
+                    )}
                   </div>
                 </div>
               ))}
@@ -162,6 +315,7 @@ export function Chatbox() {
                 fileInputRef={fileInputRef}
                 removeFile={removeFile}
                 formatFileSize={formatFileSize}
+                isLoading={isLoading || isTyping}
               />
             </div>
           </div>
@@ -215,6 +369,7 @@ export function Chatbox() {
                   fileInputRef={fileInputRef}
                   removeFile={removeFile}
                   formatFileSize={formatFileSize}
+                  isLoading={isLoading || isTyping}
                 />
               </div>
               {/* 快捷提示 */}
@@ -278,6 +433,7 @@ interface InputBoxProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   removeFile: (id: string) => void;
   formatFileSize: (bytes: number) => string;
+  isLoading?: boolean;
 }
 
 function InputBox({
@@ -293,6 +449,7 @@ function InputBox({
   fileInputRef,
   removeFile,
   formatFileSize,
+  isLoading = false,
 }: InputBoxProps) {
   return (
     <form onSubmit={onSend} className="relative">
@@ -384,9 +541,12 @@ function InputBox({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
               className={clsx(
                 "p-2 rounded-xl transition-all duration-200",
-                mode === "action"
+                isLoading
+                  ? "text-slate-400 cursor-not-allowed"
+                  : mode === "action"
                   ? "text-slate-500 hover:text-slate-300 hover:bg-slate-700"
                   : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
               )}
@@ -401,10 +561,13 @@ function InputBox({
             )}>
               <button
                 type="button"
-                onClick={() => setMode("qa")}
+                onClick={() => !isLoading && setMode("qa")}
+                disabled={isLoading}
                 className={clsx(
                   "flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all duration-300",
-                  mode === "qa"
+                  isLoading
+                    ? "text-slate-400 cursor-not-allowed"
+                    : mode === "qa"
                     ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-500/30"
                     : mode === "action"
                     ? "text-slate-400 hover:text-slate-200"
@@ -416,10 +579,13 @@ function InputBox({
               </button>
               <button
                 type="button"
-                onClick={() => setMode("action")}
+                onClick={() => !isLoading && setMode("action")}
+                disabled={isLoading}
                 className={clsx(
                   "flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all duration-300",
-                  mode === "action"
+                  isLoading
+                    ? "text-slate-400 cursor-not-allowed"
+                    : mode === "action"
                     ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30"
                     : "text-slate-500 hover:text-slate-700"
                 )}
@@ -430,16 +596,19 @@ function InputBox({
             </div>
           </div>
 
-          {/* 右侧：Plan 开关 + 发送按钮 */}
+          {/* 右侧：Plan 开关 + 发送/打断按钮 */}
           <div className="flex items-center gap-3">
             {/* Plan 开关 - 仅在行动模式显示 */}
             {mode === "action" && (
               <button
                 type="button"
-                onClick={() => setPlanEnabled(!planEnabled)}
+                onClick={() => !isLoading && setPlanEnabled(!planEnabled)}
+                disabled={isLoading}
                 className={clsx(
                   "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-300",
-                  planEnabled
+                  isLoading
+                    ? "bg-slate-700 text-slate-500 cursor-not-allowed"
+                    : planEnabled
                     ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30"
                     : "bg-slate-700 text-slate-400 hover:bg-slate-600"
                 )}
@@ -455,20 +624,29 @@ function InputBox({
               </button>
             )}
 
-            {/* 发送按钮 */}
+            {/* 发送/打断按钮 - 同一个按钮 */}
             <button
               type="submit"
-              disabled={!input.trim() && files.length === 0}
+              disabled={(!input.trim() && files.length === 0) && !isLoading}
               className={clsx(
-                "p-2.5 rounded-xl transition-all duration-300",
-                input.trim() || files.length > 0
+                "p-2.5 rounded-xl transition-all duration-300 flex items-center gap-2",
+                isLoading
+                  ? "bg-red-100 text-red-600 hover:bg-red-200"
+                  : input.trim() || files.length > 0
                   ? mode === "action"
                     ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5"
                     : "bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/30 hover:-translate-y-0.5"
                   : "bg-slate-100 text-slate-300 cursor-not-allowed"
               )}
             >
-              <ArrowUp size={20} />
+              {isLoading ? (
+                <>
+                  <StopCircle size={20} />
+                  <span className="text-sm font-medium hidden sm:inline">停止</span>
+                </>
+              ) : (
+                <ArrowUp size={20} />
+              )}
             </button>
           </div>
         </div>
@@ -524,65 +702,111 @@ function CodeBackground() {
     "  timeout: 3600s",
   ];
 
+  const highlightLines = [5, 12, 18, 25, 32, 38];
+
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* 左侧代码列 */}
-      <div className="absolute left-0 top-0 bottom-0 w-[45%] opacity-10">
-        <div className="animate-code-scroll">
-          {[...codeLines, ...codeLines].map((line, i) => (
+      {/* 扫描线效果 */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="animate-scanline absolute inset-0" />
+      </div>
+
+      {/* CRT 闪烁效果 */}
+      <div className="absolute inset-0 pointer-events-none animate-crt-flicker opacity-10" />
+
+      {/* 左侧代码列 - 更明显 */}
+      <div className="absolute left-0 top-0 bottom-0 w-[48%] opacity-20">
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent" />
+        <div className="animate-code-scroll-slow">
+          {[...codeLines, ...codeLines, ...codeLines].map((line, i) => (
             <div
               key={i}
-              className="text-xs font-mono px-4 py-0.5 text-emerald-400"
+              className={clsx(
+                "text-sm font-mono px-6 py-1 transition-all duration-300",
+                highlightLines.includes(i % codeLines.length)
+                  ? "bg-emerald-500/10 text-emerald-300"
+                  : "text-emerald-400"
+              )}
             >
-              <span className="text-slate-600 mr-3 select-none">
-                {(i % codeLines.length) + 1}
+              <span className={clsx(
+                "mr-4 select-none",
+                highlightLines.includes(i % codeLines.length)
+                  ? "text-emerald-500"
+                  : "text-slate-600"
+              )}>
+                {String((i % codeLines.length) + 1).padStart(3, '0')}
               </span>
               {formatCode(line)}
+              {highlightLines.includes(i % codeLines.length) && (
+                <span className="inline-block w-2 h-4 ml-2 bg-emerald-400 animate-pulse align-middle" />
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* 右侧代码列 */}
-      <div className="absolute right-0 top-0 bottom-0 w-[45%] opacity-10">
-        <div className="animate-code-scroll-reverse">
-          {[...codeLines.slice().reverse(), ...codeLines].map((line, i) => (
+      {/* 右侧代码列 - 更明显 */}
+      <div className="absolute right-0 top-0 bottom-0 w-[48%] opacity-18">
+        <div className="absolute inset-0 bg-gradient-to-l from-cyan-500/5 to-transparent" />
+        <div className="animate-code-scroll-reverse-slow">
+          {[...codeLines.slice().reverse(), ...codeLines, ...codeLines.slice().reverse()].map((line, i) => (
             <div
               key={i}
-              className="text-xs font-mono px-4 py-0.5 text-cyan-400"
+              className={clsx(
+                "text-sm font-mono px-6 py-1 transition-all duration-300",
+                highlightLines.includes(i % codeLines.length)
+                  ? "bg-cyan-500/10 text-cyan-300"
+                  : "text-cyan-400"
+              )}
             >
-              <span className="text-slate-600 mr-3 select-none">
-                {(i % codeLines.length) + 1}
+              <span className={clsx(
+                "mr-4 select-none",
+                highlightLines.includes(i % codeLines.length)
+                  ? "text-cyan-500"
+                  : "text-slate-600"
+              )}>
+                {String((i % codeLines.length) + 1).padStart(3, '0')}
               </span>
               {formatCode(line)}
+              {highlightLines.includes(i % codeLines.length) && (
+                <span className="inline-block w-2 h-4 ml-2 bg-cyan-400 animate-pulse align-middle" />
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* 网格效果 */}
-      <div className="absolute inset-0 bg-grid opacity-30" />
+      {/* 中间渐变分割线 */}
+      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-emerald-500/30 to-transparent" />
 
-      {/* 渐变遮罩 */}
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-slate-900" />
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-transparent to-slate-900" />
+      {/* 网格效果 - 更明显 */}
+      <div className="absolute inset-0 bg-grid opacity-50" />
+
+      {/* 四角装饰 */}
+      <div className="absolute top-4 left-4 w-20 h-20 border-l-2 border-t-2 border-emerald-500/30" />
+      <div className="absolute top-4 right-4 w-20 h-20 border-r-2 border-t-2 border-cyan-500/30" />
+      <div className="absolute bottom-4 left-4 w-20 h-20 border-l-2 border-b-2 border-cyan-500/30" />
+      <div className="absolute bottom-4 right-4 w-20 h-20 border-r-2 border-b-2 border-emerald-500/30" />
+
+      {/* 渐变遮罩 - 更柔和，让代码更明显 */}
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-slate-900" />
+      <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/10 to-slate-900" />
     </div>
   );
 }
 
 function formatCode(line: string) {
-  // 简单的语法高亮
   let formatted = line
     .replace(/(from|import|async|def|await|if|__name__|__main__|run|function|const|let|var|forEach|console|log|SELECT|FROM|WHERE|AND|ORDER BY|DESC|apiVersion|kind|metadata|name|spec|logLevel|timeout)/g,
-      '<span class="text-purple-400">$1</span>')
+      '<span class="text-fuchsia-400 font-bold">$1</span>')
     .replace(/(Agent|Task|model|resources|gpu|memory|status|result)/g,
-      '<span class="text-amber-400">$1</span>')
+      '<span class="text-amber-300 font-bold">$1</span>')
     .replace(/#.*|\/\/.*|--.*/g,
-      '<span class="text-slate-500">$&</span>')
+      '<span class="text-slate-400 italic">$&</span>')
     .replace(/".*?"|'.*?'/g,
-      '<span class="text-green-400">$&</span>')
+      '<span class="text-lime-300">$&</span>')
     .replace(/\b(\d+)\b/g,
-      '<span class="text-cyan-400">$1</span>');
+      '<span class="text-sky-300 font-bold">$1</span>');
 
   return <span dangerouslySetInnerHTML={{ __html: formatted }} />;
 }

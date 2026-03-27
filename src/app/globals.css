@@ -137,12 +137,61 @@ body {
   100% { transform: translateY(0); }
 }
 
+@keyframes codeScrollSlow {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-33.33%); }
+}
+
+@keyframes codeScrollReverseSlow {
+  0% { transform: translateY(-33.33%); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes crtFlicker {
+  0%, 100% { opacity: 0.08; }
+  50% { opacity: 0.12; }
+}
+
 .animate-code-scroll {
   animation: codeScroll 60s linear infinite;
 }
 
 .animate-code-scroll-reverse {
   animation: codeScrollReverse 60s linear infinite;
+}
+
+.animate-code-scroll-slow {
+  animation: codeScrollSlow 90s linear infinite;
+}
+
+.animate-code-scroll-reverse-slow {
+  animation: codeScrollReverseSlow 90s linear infinite;
+}
+
+.animate-scanline {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(16, 185, 129, 0.05) 50%,
+    transparent 100%
+  );
+  animation: scanline 8s linear infinite;
+}
+
+.animate-crt-flicker {
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.1),
+    rgba(0, 0, 0, 0.1) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  animation: crtFlicker 0.1s infinite;
 }
 
 .animate-fade-in-up {

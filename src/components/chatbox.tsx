@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Bot, User, Sparkles, Zap, Paperclip, X, ArrowUp, Lightbulb, StopCircle } from "lucide-react";
 import { clsx } from "clsx";
 import { Markdown } from "@/components/markdown";
+import { useAgenticWorkflow } from "@/components/agentic-workflow";
 
 type Mode = "qa" | "action";
 
@@ -24,6 +25,7 @@ interface FileItem {
 }
 
 export function Chatbox() {
+  const { onActionMessageSend, isScenarioActive } = useAgenticWorkflow();
   const [mode, setMode] = useState<Mode>("qa");
   const [planEnabled, setPlanEnabled] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -113,6 +115,16 @@ export function Chatbox() {
       return;
     }
 
+    // 如果是行动模式，尝试触发场景
+    if (mode === "action" && onActionMessageSend && input.trim()) {
+      const matched = onActionMessageSend(input.trim());
+      if (matched) {
+        // 场景已触发，不添加普通消息
+        setInput("");
+        return;
+      }
+    }
+
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -192,7 +204,7 @@ export function Chatbox() {
         await new Promise((resolve) => setTimeout(resolve, 800));
         if (abortController.signal.aborted) return;
         setIsLoading(false);
-        const fullContent = "收到！让我来帮你执行这个任务。我会调用相应的工具来完成操作。";
+        const fullContent = "收到！让我来帮你执行这个任务。试试输入「帮我微调 Llama3」或「从 BDP 提取特征」来体验 Agentic Workflow！";
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantMsgId
@@ -351,7 +363,9 @@ export function Chatbox() {
                   "max-w-lg mx-auto",
                   mode === "action" ? "text-slate-400" : "text-slate-500"
                 )}>
-                  用自然语言管理你的 AI 开发任务，从资源申请到模型训练，一键搞定
+                  {mode === "action"
+                    ? "试试「帮我微调 Llama3」或「从 BDP 提取特征」来体验 Agentic Workflow"
+                    : "用自然语言管理你的 AI 开发任务，从资源申请到模型训练，一键搞定"}
                 </p>
               </div>
               {/* 输入框 */}
@@ -374,21 +388,38 @@ export function Chatbox() {
               </div>
               {/* 快捷提示 */}
               <div className="mt-8 flex flex-wrap justify-center gap-3 animate-fade-in-up delay-300">
-                <QuickPrompt
-                  text="帮我申请 4 张 A100"
-                  onClick={() => setInput("帮我申请 4 张 A100")}
-                  mode={mode}
-                />
-                <QuickPrompt
-                  text="启动一个 Notebook"
-                  onClick={() => setInput("启动一个 Notebook")}
-                  mode={mode}
-                />
-                <QuickPrompt
-                  text="查看训练任务状态"
-                  onClick={() => setInput("查看训练任务状态")}
-                  mode={mode}
-                />
+                {mode === "action" ? (
+                  <>
+                    <QuickPrompt
+                      text="帮我微调 Llama3"
+                      onClick={() => setInput("帮我微调 Llama3")}
+                      mode={mode}
+                    />
+                    <QuickPrompt
+                      text="从 BDP 提取特征"
+                      onClick={() => setInput("从 BDP 提取特征并写入特征中心")}
+                      mode={mode}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <QuickPrompt
+                      text="帮我申请 4 张 A100"
+                      onClick={() => setInput("帮我申请 4 张 A100")}
+                      mode={mode}
+                    />
+                    <QuickPrompt
+                      text="启动一个 Notebook"
+                      onClick={() => setInput("启动一个 Notebook")}
+                      mode={mode}
+                    />
+                    <QuickPrompt
+                      text="查看训练任务状态"
+                      onClick={() => setInput("查看训练任务状态")}
+                      mode={mode}
+                    />
+                  </>
+                )}
               </div>
             </div>
           </div>

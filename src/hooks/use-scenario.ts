@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   Scenario,
   CanvasNode,
@@ -35,6 +35,7 @@ const initialState: ScenarioState = {
 
 export function useScenario() {
   const [state, setState] = useState<ScenarioState>(initialState);
+  const [isThinking, setIsThinking] = useState(false);
   const stepIndexRef = useRef(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -50,17 +51,60 @@ export function useScenario() {
     }
   }, []);
 
-  const startTypingEffect = useCallback((fullContent: string) => {
+  // 处理节点更新
+  const applyNodeChanges = useCallback((currentNodes: CanvasNode[], step: any) => {
+    let newNodes = [...currentNodes];
+
+    if (step.nodes_to_add) {
+      for (const nodeToAdd of step.nodes_to_add) {
+        const existingIndex = newNodes.findIndex(n => n.node_id === nodeToAdd.node_id);
+        if (existingIndex >= 0) {
+          newNodes[existingIndex] = { ...newNodes[existingIndex], ...nodeToAdd };
+        } else {
+          newNodes.push({ ...nodeToAdd, visible: true });
+        }
+      }
+    }
+
+    if (step.node_updates) {
+      newNodes = newNodes.map((node) => {
+        const update = step.node_updates!.find(
+          (u: any) => u.node_id === node.node_id
+        );
+        if (update) {
+          return { ...node, status: update.status as NodeStatus };
+        }
+        return node;
+      });
+    }
+
+    return newNodes;
+  }, []);
+
+  // 打字效果
+  const startTypingEffect = useCallback((fullContent: string, onComplete: () => void) => {
+    // 清除之前的定时器
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+      typingIntervalRef.current = null;
+    }
+
     setState((prev) => ({ ...prev, thinkingContent: "", isTyping: true }));
 
     let index = 0;
+    let completed = false;
+
     typingIntervalRef.current = setInterval(() => {
       if (index >= fullContent.length) {
+        if (completed) return;
+        completed = true;
+
         if (typingIntervalRef.current) {
           clearInterval(typingIntervalRef.current);
           typingIntervalRef.current = null;
         }
         setState((prev) => ({ ...prev, isTyping: false }));
+        onComplete();
         return;
       }
 
@@ -69,38 +113,49 @@ export function useScenario() {
       index = nextIndex;
 
       setState((prev) => ({ ...prev, thinkingContent: currentContent }));
-    }, 15);
+    }, 35);
   }, []);
 
+  // 执行下一步 - 核心逻辑
   const executeNextStep = useCallback(() => {
+    // 先读取当前状态快照来决定下一步
+    const currentStepIndex = stepIndexRef.current;
+
     setState((currentState) => {
       if (!currentState.scenario) return currentState;
 
       const steps = currentState.scenario.steps;
-      const stepIndex = stepIndexRef.current;
 
-      if (stepIndex >= steps.length) {
+      if (currentStepIndex >= steps.length) {
         return currentState;
       }
 
-      const step = steps[stepIndex];
+      const step = steps[currentStepIndex];
 
-      // Increment step index immediately
-      stepIndexRef.current++;
+      let newState: ScenarioState = {
+        ...currentState,
+        currentCard: null,
+      };
 
-      // Schedule next step based on delay
-      const delay = step.delay || 0;
-
-      timeoutRef.current = setTimeout(() => {
-        executeNextStep();
-      }, delay + 100);
-
-      let newState = { ...currentState };
+      // 先更新节点（不管什么类型的步骤）
+      newState.nodes = applyNodeChanges(newState.nodes, step);
 
       switch (step.type) {
         case "thinking":
+          // 只有在 thinking 类型时才立即递增 index
+          stepIndexRef.current = currentStepIndex + 1;
           if (step.content) {
-            startTypingEffect(step.content);
+            startTypingEffect(step.content, () => {
+              if (step.auto_continue === true) {
+                timeoutRef.current = setTimeout(() => {
+                  executeNextStep();
+                }, step.delay || 500);
+              }
+            });
+          } else {
+            timeoutRef.current = setTimeout(() => {
+              executeNextStep();
+            }, step.delay || 100);
           }
           break;
 
@@ -111,50 +166,20 @@ export function useScenario() {
               currentCard: step.card,
               waitingForCard: true,
             };
-            // Pause execution waiting for card confirmation
-            if (timeoutRef.current) {
-              clearTimeout(timeoutRef.current);
-              timeoutRef.current = null;
-            }
           }
+          // 注意：card 类型不立即递增 index，等到用户确认后再递增
           break;
 
-        case "node_update":
-          if (step.node_updates) {
-            const updatedNodes = newState.nodes.map((node) => {
-              const update = step.node_updates!.find(
-                (u) => u.node_id === node.node_id
-              );
-              if (update) {
-                return { ...node, status: update.status as NodeStatus };
-              }
-              return node;
-            });
-            newState = { ...newState, nodes: updatedNodes };
-          }
-          break;
-
-        case "add_nodes":
-          if (step.nodes_to_add) {
-            // 添加新节点，保持现有节点
-            const newNodes = [...newState.nodes];
-            for (const nodeToAdd of step.nodes_to_add) {
-              // 检查节点是否已存在
-              const existingIndex = newNodes.findIndex(n => n.node_id === nodeToAdd.node_id);
-              if (existingIndex >= 0) {
-                newNodes[existingIndex] = { ...newNodes[existingIndex], ...nodeToAdd };
-              } else {
-                newNodes.push({ ...nodeToAdd, visible: true });
-              }
-            }
-            newState = { ...newState, nodes: newNodes };
-          }
+        case "show_loss_chart":
+          newState.showLossChart = true;
+          // 不自动继续，等待 LossChart 组件训练完成后调用 handleTrainingComplete
+          // 注意：show_loss_chart 类型不立即递增 index
           break;
       }
 
       return newState;
     });
-  }, [startTypingEffect]);
+  }, [startTypingEffect, applyNodeChanges]);
 
   const startScenario = useCallback((userInput: string) => {
     clearAllTimeouts();
@@ -172,12 +197,12 @@ export function useScenario() {
       isTyping: false,
       currentCard: null,
       waitingForCard: false,
-      showLossChart: !!scenario.showLossChart,
+      showLossChart: false,
       isDrawerOpen: true,
     });
 
-    // Start execution after a short delay
-    timeoutRef.current = setTimeout(() => {
+    // 开始执行
+    setTimeout(() => {
       executeNextStep();
     }, 300);
 
@@ -185,23 +210,40 @@ export function useScenario() {
   }, [clearAllTimeouts, executeNextStep]);
 
   const handleCardConfirm = useCallback((value: string) => {
-    setState((prev) => {
-      if (!prev.scenario) return prev;
+    // 清除所有定时器，防止意外执行
+    clearAllTimeouts();
 
-      // Clear the card and resume execution
+    // 用户确认卡片后，先递增 stepIndex
+    stepIndexRef.current++;
+
+    setState((prev) => {
+      // 只有当确实有卡片时才执行
+      if (!prev.scenario || !prev.currentCard) return prev;
+
       const newState = {
         ...prev,
         currentCard: null,
         waitingForCard: false,
       };
 
-      // Resume step execution
-      timeoutRef.current = setTimeout(() => {
-        executeNextStep();
-      }, 200);
-
       return newState;
     });
+
+    // 1000ms thinking delay after user confirmation
+    setIsThinking(true);
+    timeoutRef.current = setTimeout(() => {
+      setIsThinking(false);
+      executeNextStep();
+    }, 1000);
+  }, [executeNextStep, clearAllTimeouts]);
+
+  const handleTrainingComplete = useCallback(() => {
+    // 训练完成后，先递增 stepIndex
+    stepIndexRef.current++;
+    setState(prev => ({ ...prev, showLossChart: false }));
+    setTimeout(() => {
+      executeNextStep();
+    }, 500);
   }, [executeNextStep]);
 
   const resetScenario = useCallback(() => {
@@ -218,7 +260,14 @@ export function useScenario() {
     setState((prev) => ({ ...prev, isDrawerOpen: true }));
   }, []);
 
-  // Cleanup on unmount
+  const currentProgress = useMemo(() => {
+    if (!state.scenario) return { current: 0, total: 0 };
+    return {
+      current: stepIndexRef.current,
+      total: state.scenario.steps.length,
+    };
+  }, [state.scenario]);
+
   useEffect(() => {
     return () => {
       clearAllTimeouts();
@@ -229,8 +278,11 @@ export function useScenario() {
     state,
     startScenario,
     handleCardConfirm,
+    handleTrainingComplete,
     resetScenario,
     closeDrawer,
     openDrawer,
+    currentProgress,
+    isThinking,
   };
 }

@@ -3,7 +3,12 @@
     "allow": [
       "Bash(npm run:*)",
       "Bash(npx ngrok:*)",
-      "Bash(curl -s http://127.0.0.1:4040/api/tunnels)"
+      "Bash(curl -s http://127.0.0.1:4040/api/tunnels)",
+      "Bash(grep -A 15 'card_type: \"\"SLIDER\"\"' /Users/yangyinan.8/jiushu_agent/src/lib/scenarios.ts)",
+      "Read(//Users/yangyangyinan.8/jiushu_agent/src/hooks/**)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f node)",
+      "Bash(curl -s http://localhost:3002)"
     ]
   }
 }

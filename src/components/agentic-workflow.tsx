@@ -1,19 +1,24 @@
 "use client";
 
-import { createContext, useContext, useCallback } from "react";
+import { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { clsx } from "clsx";
 import { WorkflowCanvas } from "@/components/workflow-canvas";
 import { ThinkingDrawer } from "@/components/thinking-drawer";
 import { LossChart } from "@/components/loss-chart";
 import { Chatbox } from "@/components/chatbox";
 import { useScenario } from "@/hooks/use-scenario";
-import { ArrowLeft, BrainCircuit } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Code2 } from "lucide-react";
+import { usePromptBridge } from "@/lib/prompt-bridge";
+import { useDevMode, type DevCanvasNode } from "@/lib/dev-mode-context";
+import type { CanvasNode as ScenarioCanvasNode } from "@/lib/scenarios";
 
 // Create context to share scenario state with Chatbox
 interface AgenticWorkflowContextType {
   onActionMessageSend?: (message: string) => boolean;
   isScenarioActive?: boolean;
   resetScenario?: () => void;
+  autoFillPrompt?: string | null;
+  clearAutoFillPrompt?: () => void;
 }
 
 const AgenticWorkflowContext = createContext<AgenticWorkflowContextType>({});
@@ -31,10 +36,44 @@ export function AgenticWorkflow({ className }: AgenticWorkflowProps) {
     state,
     startScenario,
     handleCardConfirm,
+    handleTrainingComplete,
     resetScenario,
     closeDrawer,
     openDrawer,
+    isThinking,
+    currentProgress,
   } = useScenario();
+
+  const { convertedPrompt, resetBridge } = usePromptBridge();
+  const { syncCanvasToCode, setActiveSource } = useDevMode();
+  const [autoFillPrompt, setAutoFillPrompt] = useState<string | null>(null);
+
+  // 将画布节点同步到智能开发
+  const handleSyncToDev = useCallback(() => {
+    // 转换工作流节点为 DevCanvasNode 格式
+    const canvasNodes: DevCanvasNode[] = state.nodes.map((node: ScenarioCanvasNode) => ({
+      id: node.node_id,
+      type: node.type,
+      label: node.label,
+      status: node.status,
+      agent_type: node.agent_type,
+      generatedCode: `# ${node.label}\n# 节点类型: ${node.agent_type}`,
+    }));
+    syncCanvasToCode(canvasNodes);
+    setActiveSource("hub");
+  }, [state.nodes, syncCanvasToCode, setActiveSource]);
+
+  useEffect(() => {
+    if (convertedPrompt) {
+      setAutoFillPrompt(convertedPrompt);
+      // Reset the bridge after receiving the prompt
+      resetBridge();
+    }
+  }, [convertedPrompt, resetBridge]);
+
+  const clearAutoFillPrompt = useCallback(() => {
+    setAutoFillPrompt(null);
+  }, []);
 
   const handleActionMessageSend = useCallback((message: string): boolean => {
     return startScenario(message);
@@ -44,6 +83,8 @@ export function AgenticWorkflow({ className }: AgenticWorkflowProps) {
     onActionMessageSend: handleActionMessageSend,
     isScenarioActive: state.isActive,
     resetScenario,
+    autoFillPrompt,
+    clearAutoFillPrompt,
   };
 
   return (
@@ -66,17 +107,26 @@ export function AgenticWorkflow({ className }: AgenticWorkflowProps) {
                     {state.scenario?.name || "任务执行中"}
                   </span>
                   <span className="text-xs text-slate-500">
-                    Agentic Workflow 模式
+                    智能中枢 · 画布模式
                   </span>
                 </div>
               </div>
-              <button
-                onClick={openDrawer}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-medium shadow-lg shadow-emerald-500/30 hover:from-emerald-600 hover:to-teal-600 transition-all"
-              >
-                <BrainCircuit size={18} />
-                查看思考
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSyncToDev}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 text-white font-medium shadow-lg shadow-violet-500/30 hover:from-violet-600 hover:to-indigo-600 transition-all"
+                >
+                  <Code2 size={18} />
+                  同步到代码
+                </button>
+                <button
+                  onClick={openDrawer}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-medium shadow-lg shadow-emerald-500/30 hover:from-emerald-600 hover:to-teal-600 transition-all"
+                >
+                  <BrainCircuit size={18} />
+                  查看思考
+                </button>
+              </div>
             </div>
 
             {/* Workflow Canvas */}
@@ -95,10 +145,13 @@ export function AgenticWorkflow({ className }: AgenticWorkflowProps) {
           onClose={closeDrawer}
           thinkingContent={state.thinkingContent}
           isTyping={state.isTyping}
+          isThinking={isThinking}
+          isExecuting={state.showLossChart}
+          currentProgress={currentProgress}
           card={state.currentCard}
           onCardConfirm={handleCardConfirm}
         >
-          {state.showLossChart && <LossChart visible={state.isActive} />}
+          {state.showLossChart && <LossChart visible={state.showLossChart} onTrainingComplete={handleTrainingComplete} />}
         </ThinkingDrawer>
       </div>
     </AgenticWorkflowContext.Provider>

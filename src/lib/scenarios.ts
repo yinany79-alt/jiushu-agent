@@ -1,4 +1,4 @@
-export type NodeStatus = "pending" | "running" | "success" | "error";
+export type NodeStatus = "pending" | "running" | "success" | "error" | "streaming";
 
 export interface CanvasNode {
   node_id: string;
@@ -16,23 +16,55 @@ export interface SelectionOption {
   is_recommend?: boolean;
 }
 
-export type CardType = "SINGLE_SELECT" | "CONFIRM";
+export interface SliderOption {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
+  unit?: string;
+}
+
+export interface DropdownOption {
+  label: string;
+  value: string;
+}
+
+export interface ButtonGroupOption {
+  label: string;
+  value: string;
+  icon?: string;
+  style?: "primary" | "secondary" | "success";
+}
+
+export type CardType =
+  | "SINGLE_SELECT"
+  | "CONFIRM"
+  | "MULTI_SELECT"
+  | "DROPDOWN"
+  | "SLIDER"
+  | "BUTTON_GROUP"
+  | "RECOMMENDED";
 
 export interface InteractionCard {
   card_type: CardType;
   title: string;
   description?: string;
   options?: SelectionOption[];
+  slider_options?: SliderOption[];
+  dropdown_options?: DropdownOption[];
+  button_options?: ButtonGroupOption[];
   action: string;
 }
 
 export interface ScenarioStep {
-  type: "thinking" | "card" | "node_update" | "add_nodes";
+  type: "thinking" | "card" | "show_loss_chart";
   delay?: number;
   content?: string;
   card?: InteractionCard;
   node_updates?: Array<{ node_id: string; status: NodeStatus }>;
-  nodes_to_add?: CanvasNode[]; // 新增的节点
+  nodes_to_add?: CanvasNode[];
+  auto_continue?: boolean; // true = 自动继续，false/null = 显示"继续"按钮
 }
 
 export interface Scenario {
@@ -41,396 +73,244 @@ export interface Scenario {
   triggerKeywords: string[];
   initialNodes: CanvasNode[];
   steps: ScenarioStep[];
-  showLossChart?: boolean;
 }
 
-// 场景 A: 完整的 Llama3 微调流程
+// 场景 A: 6 阶段 Llama3 微调流程（完整工业级演示版）
 export const SCENARIO_FINETUNE: Scenario = {
   id: "finetune_llama3",
   name: "Llama3 模型微调",
   triggerKeywords: ["微调", "train", "训练", "llama"],
   initialNodes: [
-    { node_id: "T_001", type: "intent", label: "需求理解", status: "pending", agent_type: "Brain-Agent", position: { x: 50, y: 100 }, visible: true },
+    { node_id: "S_001", type: "setup", label: "项目初始化", status: "pending", agent_type: "Init-Agent", position: { x: 50, y: 100 }, visible: true },
+    { node_id: "S_002", type: "data", label: "数据策略", status: "pending", agent_type: "Data-Agent", position: { x: 280, y: 100 }, visible: true },
+    { node_id: "S_003", type: "resource", label: "GPU 集群", status: "pending", agent_type: "Resource-Agent", position: { x: 510, y: 100 }, visible: true },
+    { node_id: "S_004", type: "hyperparams", label: "超参数", status: "pending", agent_type: "Config-Agent", position: { x: 740, y: 100 }, visible: true },
+    { node_id: "S_005", type: "execution", label: "实时监控", status: "pending", agent_type: "Execute-Agent", position: { x: 970, y: 100 }, visible: true },
+    { node_id: "S_006", type: "artifacts", label: "制品产出", status: "pending", agent_type: "Artifact-Agent", position: { x: 1200, y: 100 }, visible: true },
   ],
-  showLossChart: true,
   steps: [
-    // Step 1: 理解需求
+    // === 阶段 1: 项目初始化 ===
     {
       type: "thinking",
-      delay: 500,
-      content: "收到！让我来帮你微调 Llama3 模型。先让我分析一下你的需求...",
+      content: "正在识别用户权限，检索可用算力分区... 建议在 `Space_Yveson_Pro` 进行实验。",
+      node_updates: [{ node_id: "S_001", status: "running" }],
+      auto_continue: true,
+      delay: 3000,
     },
     {
-      type: "node_update",
-      delay: 800,
-      node_updates: [{ node_id: "T_001", status: "running" }],
+      type: "card",
+      card: {
+        card_type: "RECOMMENDED",
+        title: "选择实验空间和基座模型",
+        description: "推荐配置已根据您的权限预设",
+        options: [
+          { label: "Space_Yveson_Pro + Llama-3-8B (推荐)", value: "space_pro_8b", is_recommend: true },
+          { label: "Space_Yveson_Pro + Llama-3-70B", value: "space_pro_70b" },
+          { label: "Space_Standard + Llama-3-8B", value: "space_std_8b" },
+        ],
+        action: "SELECT_SPACE_MODEL",
+      },
     },
     {
       type: "thinking",
+      content: "已确认实验配置，空间和模型已就绪。",
+      node_updates: [{ node_id: "S_001", status: "success" }],
+      auto_continue: true,
+      delay: 3000,
+    },
+
+    // === 阶段 2: 数据策略 ===
+    {
+      type: "thinking",
+      content: "正在扫描 BDP 存储... 发现 `dataset_llama_v1`。正在进行 Token 分布采样分析...",
+      node_updates: [{ node_id: "S_002", status: "running" }],
+      auto_continue: true,
+      delay: 3000,
+    },
+    {
+      type: "card",
+      card: {
+        card_type: "MULTI_SELECT",
+        title: "选择数据集 (最多2个)",
+        description: "选择训练集和验证集",
+        options: [
+          { label: "dataset_llama_v1 (训练集)", value: "train_llama_v1", is_recommend: true },
+          { label: "dataset_llama_eval (验证集)", value: "eval_llama", is_recommend: true },
+          { label: "dataset_alpaca (辅助训练)", value: "alpaca" },
+          { label: "dataset_sharegpt (对话数据)", value: "sharegpt" },
+        ],
+        action: "SELECT_DATASETS",
+      },
+    },
+    {
+      type: "card",
+      card: {
+        card_type: "DROPDOWN",
+        title: "选择 Prompt 模板",
+        description: "用于训练的指令格式模板",
+        dropdown_options: [
+          { label: "Llama-3 Chat (推荐)", value: "llama3_chat" },
+          { label: "Alpaca 格式", value: "alpaca" },
+          { label: "ShareGPT 多轮对话", value: "sharegpt_format" },
+        ],
+        action: "SELECT_PROMPT_TEMPLATE",
+      },
+    },
+    {
+      type: "thinking",
+      content: "数据集和模板已配置，Token 分布分析完成。",
+      node_updates: [{ node_id: "S_002", status: "streaming" }],
+      auto_continue: true,
+      delay: 3000,
+    },
+
+    // === 阶段 3: GPU 集群 ===
+    {
+      type: "thinking",
+      content: "计算模型参数量中... 建议使用 4 × A100 (80G) 以开启 DeepSpeed ZeRO-3 优化。",
+      node_updates: [{ node_id: "S_003", status: "running" }],
+      auto_continue: true,
+      delay: 3000,
+    },
+    {
+      type: "card",
+      card: {
+        card_type: "RECOMMENDED",
+        title: "选择 GPU 配置",
+        description: "已根据模型大小自动计算最优配置",
+        options: [
+          { label: "4 × A100 (80G) - 推荐配置", value: "a100_4x80g", is_recommend: true },
+          { label: "2 × H800 (80G)", value: "h800_2x80g" },
+          { label: "8 × A100 (80G)", value: "a100_8x80g" },
+        ],
+        action: "SELECT_GPU",
+      },
+    },
+    {
+      type: "thinking",
+      content: "GPU 资源已分配，DeepSpeed ZeRO-3 优化已启用。",
+      node_updates: [{ node_id: "S_003", status: "success" }],
+      auto_continue: true,
+      delay: 3000,
+    },
+
+    // === 阶段 4: 超参数调优 ===
+    {
+      type: "thinking",
+      content: "根据数据集大小，已为你预设最佳学习率 2e-5。LoRA Rank 建议设置为 8。",
+      node_updates: [{ node_id: "S_004", status: "running" }],
+      auto_continue: true,
+      delay: 3000,
+    },
+    {
+      type: "card",
+      card: {
+        card_type: "SLIDER",
+        title: "配置超参数",
+        description: "微调学习率、批大小和 LoRA Rank",
+        slider_options: [
+          { label: "学习率", min: 1, max: 10, step: 0.5, default: 2, unit: "e-5" },
+          { label: "批大小", min: 16, max: 128, step: 16, default: 32, unit: "batch" },
+          { label: "LoRA Rank", min: 4, max: 32, step: 4, default: 8, unit: "rank" },
+        ],
+        action: "CONFIG_HYPERPARAMS",
+      },
+    },
+    {
+      type: "thinking",
+      content: "超参数已配置完成，训练准备就绪。",
+      node_updates: [{ node_id: "S_004", status: "success" }],
+      auto_continue: true,
+      delay: 3000,
+    },
+
+    // === 阶段 5: 实时监控 ===
+    {
+      type: "thinking",
+      content: "正在提交 K8s 训练任务...",
+      node_updates: [{ node_id: "S_005", status: "running" }],
+      auto_continue: true,
       delay: 1500,
-      content: "好的！我理解你要做一个 **Llama3 全参数微调** 任务。我会按以下步骤进行：\n\n1. **配置数据源** - 选择训练数据集\n2. **选择基座模型** - 确定模型规格\n3. **配置超参数** - 学习率、batch size 等\n4. **申请计算资源** - GPU 配置\n5. **数据预处理**\n6. **启动训练任务**\n7. **监控与评估**\n\n让我们一步一步来！",
-    },
-    {
-      type: "node_update",
-      delay: 500,
-      node_updates: [{ node_id: "T_001", status: "success" }],
-    },
-    // Step 2: 添加数据源配置节点
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "T_002", type: "data_source", label: "数据源配置", status: "pending", agent_type: "Data-Worker", position: { x: 250, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "T_002", status: "running" }],
     },
     {
       type: "thinking",
-      delay: 500,
-      content: "首先，让我们配置训练数据源。你想用哪个数据集？",
+      content: "任务已提交，训练节点正在启动...",
+      node_updates: [{ node_id: "S_005", status: "running" }],
+      auto_continue: true,
+      delay: 3000,
+    },
+    {
+      type: "show_loss_chart",
+      node_updates: [{ node_id: "S_005", status: "running" }],
+    },
+
+    // === 阶段 6: 制品产出 ===
+    {
+      type: "thinking",
+      content: "训练完成，验证集 PPL 达到 1.08，优于 Baseline。正在打包模型权重...",
+      node_updates: [{ node_id: "S_006", status: "running" }],
+      auto_continue: true,
+      delay: 3000,
     },
     {
       type: "card",
-      delay: 1000,
       card: {
-        card_type: "SINGLE_SELECT",
-        title: "选择训练数据集",
-        description: "从最近使用的数据集中选择",
-        options: [
-          { label: "Alpaca-Chinese (52K 中文指令)", value: "alpaca_zh", is_recommend: true },
-          { label: "ShareGPT (90K 多轮对话)", value: "sharegpt" },
-          { label: "GSM8K (数学推理)", value: "gsm8k" },
-          { label: "自定义数据集", value: "custom" },
+        card_type: "BUTTON_GROUP",
+        title: "训练完成！选择后续操作",
+        description: "验证集 PPL: 1.08 | 训练时长: 2h 15m",
+        button_options: [
+          { label: "部署到在线推理", value: "deploy", style: "primary", icon: "Rocket" },
+          { label: "导出到模型中心", value: "export", style: "success", icon: "Download" },
+          { label: "查看详细报告", value: "report", style: "secondary", icon: "FileText" },
         ],
-        action: "SELECT_DATASET",
+        action: "SELECT_NEXT_ACTION",
       },
     },
     {
-      type: "node_update",
-      delay: 0,
-      node_updates: [{ node_id: "T_002", status: "success" }],
-    },
-    {
       type: "thinking",
-      delay: 400,
-      content: "好的！已选择 **Alpaca-Chinese** 数据集。这是一个高质量的中文指令微调数据集，包含 52,000 条样本。",
-    },
-    // Step 3: 选择模型
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "T_003", type: "model_select", label: "模型选择", status: "pending", agent_type: "Model-Worker", position: { x: 450, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "T_003", status: "running" }],
-    },
-    {
-      type: "thinking",
-      delay: 600,
-      content: "接下来，选择基座模型版本。你想用多大的 Llama3 模型？",
-    },
-    {
-      type: "card",
-      delay: 1200,
-      card: {
-        card_type: "SINGLE_SELECT",
-        title: "选择基座模型",
-        description: "根据你的任务规模和算力选择",
-        options: [
-          { label: "Llama3-8B (推荐，平衡性能)", value: "llama3_8b", is_recommend: true },
-          { label: "Llama3-70B (大规模，高性能)", value: "llama3_70b" },
-        ],
-        action: "SELECT_MODEL",
-      },
-    },
-    {
-      type: "node_update",
-      delay: 0,
-      node_updates: [{ node_id: "T_003", status: "success" }],
-    },
-    {
-      type: "thinking",
-      delay: 400,
-      content: "太棒了！**Llama3-8B** 是个很好的选择，性能和效率兼顾！",
-    },
-    // Step 4: 配置超参数
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "T_004", type: "hyperparams", label: "超参数配置", status: "pending", agent_type: "Config-Worker", position: { x: 650, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "T_004", status: "running" }],
-    },
-    {
-      type: "thinking",
-      delay: 600,
-      content: "现在配置训练超参数。我根据 Llama3-8B 给你推荐了最优设置。",
-    },
-    {
-      type: "card",
-      delay: 1200,
-      card: {
-        card_type: "SINGLE_SELECT",
-        title: "配置训练超参数",
-        description: "选择学习率和 batch size",
-        options: [
-          { label: "推荐配置 (lr=2e-5, bs=32, epochs=3)", value: "hp_recommended", is_recommend: true },
-          { label: "快速实验 (lr=5e-5, bs=16, epochs=1)", value: "hp_fast" },
-          { label: "精细调优 (lr=1e-5, bs=64, epochs=5)", value: "hp_fine" },
-        ],
-        action: "SELECT_HYPERPARAMS",
-      },
-    },
-    {
-      type: "node_update",
-      delay: 0,
-      node_updates: [{ node_id: "T_004", status: "success" }],
-    },
-    {
-      type: "thinking",
-      delay: 400,
-      content: "完美！超参数已配置：**学习率 2e-5，Batch Size 32，训练 3 轮**。",
-    },
-    // Step 5: 申请计算资源
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "T_005", type: "resource", label: "算力申请", status: "pending", agent_type: "Resource-Worker", position: { x: 850, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "T_005", status: "running" }],
-    },
-    {
-      type: "thinking",
-      delay: 600,
-      content: "现在申请计算资源。根据你的模型和 batch size，我推荐以下配置。",
-    },
-    {
-      type: "card",
-      delay: 1200,
-      card: {
-        card_type: "SINGLE_SELECT",
-        title: "选择计算资源",
-        description: "根据你的配置选择 GPU 规格",
-        options: [
-          { label: "高性价比 (4 × A100-40G)", value: "a100_4x40g", is_recommend: true },
-          { label: "高性能 (8 × A100-80G)", value: "a100_8x80g" },
-          { label: "极致性能 (16 × H100)", value: "h100_16x" },
-        ],
-        action: "SELECT_RESOURCE",
-      },
-    },
-    {
-      type: "node_update",
-      delay: 0,
-      node_updates: [{ node_id: "T_005", status: "success" }],
-    },
-    {
-      type: "thinking",
-      delay: 400,
-      content: "资源申请成功！**4 × A100-40G** 已分配，预计训练时间 4-5 小时。",
-    },
-    // Step 6: 数据预处理
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "T_006", type: "preprocess", label: "数据预处理", status: "pending", agent_type: "Data-Worker", position: { x: 1050, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "T_006", status: "running" }],
-    },
-    {
-      type: "thinking",
-      delay: 500,
-      content: "开始数据预处理... Tokenizing 数据集，构建 DataLoader。",
-    },
-    {
-      type: "thinking",
-      delay: 2000,
-      content: "正在处理 52,000 条样本... 已完成 30%...",
-    },
-    {
-      type: "thinking",
-      delay: 2000,
-      content: "已完成 70%... 构建缓存...",
-    },
-    {
-      type: "node_update",
-      delay: 2000,
-      node_updates: [{ node_id: "T_006", status: "success" }],
-    },
-    {
-      type: "thinking",
-      delay: 300,
-      content: "数据预处理完成！所有样本已 tokenized 并缓存。",
-    },
-    // Step 7: 训练任务
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "T_007", type: "training", label: "训练任务", status: "pending", agent_type: "Train-Worker", position: { x: 1250, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "T_007", status: "running" }],
-    },
-    {
-      type: "thinking",
-      delay: 600,
-      content: "训练任务启动！开始第 1 轮训练...",
-    },
-    {
-      type: "thinking",
-      delay: 2500,
-      content: "Epoch 1/3 完成！Loss: 2.1 → 1.5。继续第 2 轮...",
-    },
-    {
-      type: "thinking",
-      delay: 2500,
-      content: "Epoch 2/3 完成！Loss: 1.5 → 1.1。最后一轮...",
-    },
-    {
-      type: "thinking",
-      delay: 2500,
-      content: "Epoch 3/3 完成！Loss: 1.1 → 0.9。训练顺利完成！",
-    },
-    {
-      type: "node_update",
-      delay: 500,
-      node_updates: [{ node_id: "T_007", status: "success" }],
-    },
-    // Step 8: 模型评估
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "T_008", type: "evaluation", label: "模型评估", status: "pending", agent_type: "Eval-Worker", position: { x: 1450, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "T_008", status: "running" }],
-    },
-    {
-      type: "thinking",
-      delay: 600,
-      content: "开始模型评估... 运行测试集，计算指标。",
-    },
-    {
-      type: "thinking",
-      delay: 2500,
-      content: "评估完成！结果：\n- **准确率**: 89.3%\n- **BLEU**: 42.1\n- **ROUGE-L**: 58.7\n\n模型效果非常好！",
-    },
-    {
-      type: "node_update",
-      delay: 500,
-      node_updates: [{ node_id: "T_008", status: "success" }],
-    },
-    // Step 9: 模型保存
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "T_009", type: "save", label: "模型保存", status: "pending", agent_type: "Store-Worker", position: { x: 1650, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "T_009", status: "running" }],
-    },
-    {
-      type: "thinking",
-      delay: 600,
-      content: "正在保存模型权重和配置文件...",
-    },
-    {
-      type: "node_update",
-      delay: 2000,
-      node_updates: [{ node_id: "T_009", status: "success" }],
-    },
-    {
-      type: "thinking",
-      delay: 400,
-      content: "🎉 **任务全部完成！**\n\n模型已保存至：`/models/llama3-8b-finetuned-v1/`\n\n你可以：\n1. 查看 Loss 曲线（右侧面板）\n2. 启动推理服务\n3. 继续下一轮微调",
+      content: "恭喜！Llama-3 微调流程已完成，模型已准备就绪。",
+      node_updates: [{ node_id: "S_006", status: "success" }],
     },
   ],
 };
 
-// 场景 B: 特征处理
+// 场景 B: 特征处理流（简化可控版）
 export const SCENARIO_FEATURE: Scenario = {
   id: "feature_engineering",
   name: "特征处理流",
   triggerKeywords: ["特征", "feature", "bdp", "写入"],
   initialNodes: [
     { node_id: "F_001", type: "intent", label: "需求理解", status: "pending", agent_type: "Brain-Agent", position: { x: 50, y: 100 }, visible: true },
+    { node_id: "F_002", type: "bdp_pull", label: "选择数据表", status: "pending", agent_type: "Data-Worker", position: { x: 250, y: 100 }, visible: true },
+    { node_id: "F_003", type: "feature_config", label: "配置特征算子", status: "pending", agent_type: "Feature-Worker", position: { x: 450, y: 100 }, visible: true },
   ],
   steps: [
     {
       type: "thinking",
-      delay: 500,
-      content: "收到！让我帮你从 BDP 提取特征并写入特征中心。",
-    },
-    {
-      type: "node_update",
-      delay: 800,
+      content: "收到，处理特征工程任务。",
       node_updates: [{ node_id: "F_001", status: "running" }],
+      auto_continue: true,
     },
     {
       type: "thinking",
-      delay: 1500,
-      content: "理解！这是一个特征工程任务。我们来一步步完成：\n\n1. **选择源数据表**\n2. **配置特征算子**\n3. **执行特征计算**\n4. **写入特征中心**\n\n开始吧！",
-    },
-    {
-      type: "node_update",
-      delay: 500,
+      content: "已确认：从 BDP 提取特征并写入特征中心。",
       node_updates: [{ node_id: "F_001", status: "success" }],
+      auto_continue: true,
     },
+
     // 选择数据表
     {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "F_002", type: "bdp_pull", label: "选择数据表", status: "pending", agent_type: "Data-Worker", position: { x: 250, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
+      type: "thinking",
+      content: "第一步：选择数据源表。",
       node_updates: [{ node_id: "F_002", status: "running" }],
+      auto_continue: true,
     },
     {
       type: "card",
-      delay: 1000,
       card: {
         card_type: "SINGLE_SELECT",
         title: "请选择数据源表",
-        description: "最近使用的业务表",
+        description: "从最近使用的业务表中选择",
         options: [
           { label: "user_behavior_daily (用户行为表)", value: "user_behavior", is_recommend: true },
           { label: "order_events (订单事件表)", value: "order_events" },
@@ -440,37 +320,27 @@ export const SCENARIO_FEATURE: Scenario = {
       },
     },
     {
-      type: "node_update",
-      delay: 0,
+      type: "thinking",
+      content: "已选择数据表。",
       node_updates: [{ node_id: "F_002", status: "success" }],
+      auto_continue: true,
     },
+
     // 配置特征算子
     {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "F_003", type: "feature_config", label: "配置特征算子", status: "pending", agent_type: "Feature-Worker", position: { x: 450, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "F_003", status: "running" }],
-    },
-    {
       type: "thinking",
-      delay: 600,
-      content: "好的，数据表已选。现在配置要计算的特征。",
+      content: "第二步：配置特征计算方案。",
+      node_updates: [{ node_id: "F_003", status: "running" }],
+      auto_continue: true,
     },
     {
       type: "card",
-      delay: 1200,
       card: {
         card_type: "SINGLE_SELECT",
         title: "选择特征模板",
-        description: "预定义的特征计算方案",
+        description: "选择预定义的特征计算方案",
         options: [
-          { label: "用户行为特征包 (32维)", value: "behavior_32", is_recommend: true },
+          { label: "用户行为特征包 (32维，推荐)", value: "behavior_32", is_recommend: true },
           { label: "统计特征包 (64维)", value: "stats_64" },
           { label: "时序特征包 (128维)", value: "ts_128" },
         ],
@@ -478,93 +348,22 @@ export const SCENARIO_FEATURE: Scenario = {
       },
     },
     {
-      type: "node_update",
-      delay: 0,
+      type: "thinking",
+      content: "已选择特征模板，配置完成！",
       node_updates: [{ node_id: "F_003", status: "success" }],
-    },
-    // 执行特征计算
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "F_004", type: "feature_op", label: "执行特征计算", status: "pending", agent_type: "Feature-Worker", position: { x: 650, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "F_004", status: "running" }],
-    },
-    {
-      type: "thinking",
-      delay: 600,
-      content: "开始执行特征计算... 点击率、转化率、活跃度...",
-    },
-    {
-      type: "thinking",
-      delay: 2500,
-      content: "已完成 50%... 计算滑动窗口统计...",
-    },
-    {
-      type: "node_update",
-      delay: 2500,
-      node_updates: [{ node_id: "F_004", status: "success" }],
-    },
-    // 写入特征中心
-    {
-      type: "add_nodes",
-      delay: 300,
-      nodes_to_add: [
-        { node_id: "F_005", type: "feature_store", label: "写入特征中心", status: "pending", agent_type: "Store-Worker", position: { x: 850, y: 100 }, visible: true },
-      ],
-    },
-    {
-      type: "node_update",
-      delay: 200,
-      node_updates: [{ node_id: "F_005", status: "running" }],
-    },
-    {
-      type: "thinking",
-      delay: 600,
-      content: "正在写入特征中心...",
-    },
-    {
-      type: "card",
-      delay: 1200,
-      card: {
-        card_type: "SINGLE_SELECT",
-        title: "请确认存储路径",
-        description: "特征写入位置",
-        options: [
-          { label: "/feature_store/v2/user_features/", value: "path_v2", is_recommend: true },
-          { label: "/feature_store/legacy/user_features/", value: "path_legacy" },
-        ],
-        action: "SUBMIT_PATH",
-      },
-    },
-    {
-      type: "node_update",
-      delay: 0,
-      node_updates: [{ node_id: "F_005", status: "success" }],
-    },
-    {
-      type: "thinking",
-      delay: 500,
-      content: "✅ **特征处理完成！**\n\n共生成 **32 维** 特征，已成功写入特征中心！\n- 覆盖用户数: 1,250,000\n- 特征版本: v2.3.0\n- 有效期: 7 天",
     },
   ],
 };
 
-export const ALL_SCENARIOS: Scenario[] = [SCENARIO_FINETUNE, SCENARIO_FEATURE];
-
 export function matchScenario(input: string): Scenario | null {
-  const lowerInput = input.toLowerCase();
-  for (const scenario of ALL_SCENARIOS) {
-    for (const keyword of scenario.triggerKeywords) {
-      if (lowerInput.includes(keyword.toLowerCase())) {
-        return scenario;
-      }
+  const normalized = input.toLowerCase();
+
+  for (const scenario of [SCENARIO_FINETUNE, SCENARIO_FEATURE]) {
+    if (scenario.triggerKeywords.some((kw) => normalized.includes(kw.toLowerCase()))) {
+      return scenario;
     }
   }
-  return null;
+
+  // 默认返回微调场景
+  return SCENARIO_FINETUNE;
 }

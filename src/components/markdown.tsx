@@ -14,32 +14,32 @@ export function Markdown({ content, className, mode = "qa" }: MarkdownProps) {
   return (
     <div className={clsx(
       "markdown-body text-sm leading-relaxed",
-      mode === "action" ? "markdown-action" : "markdown-qa",
+      mode === "action" ? "markdown-action text-slate-200" : "markdown-qa",
       className
     )}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ ...props }) => (
-            <h1 className="text-xl font-bold mb-4 mt-6 first:mt-0" {...props} />
+            <h1 className={clsx("text-xl font-bold mb-4 mt-6 first:mt-0", mode === "action" ? "text-slate-100" : "")} {...props} />
           ),
           h2: ({ ...props }) => (
-            <h2 className="text-lg font-bold mb-3 mt-5 first:mt-0" {...props} />
+            <h2 className={clsx("text-lg font-bold mb-3 mt-5 first:mt-0", mode === "action" ? "text-slate-100" : "")} {...props} />
           ),
           h3: ({ ...props }) => (
-            <h3 className="text-base font-semibold mb-2 mt-4 first:mt-0" {...props} />
+            <h3 className={clsx("text-base font-semibold mb-2 mt-4 first:mt-0", mode === "action" ? "text-slate-100" : "")} {...props} />
           ),
           h4: ({ ...props }) => (
-            <h4 className="text-sm font-semibold mb-2 mt-3 first:mt-0" {...props} />
+            <h4 className={clsx("text-sm font-semibold mb-2 mt-3 first:mt-0", mode === "action" ? "text-slate-100" : "")} {...props} />
           ),
           p: ({ ...props }) => (
-            <p className="mb-3 last:mb-0" {...props} />
+            <p className={clsx("mb-3 last:mb-0", mode === "action" ? "text-slate-200" : "")} {...props} />
           ),
           ul: ({ ...props }) => (
-            <ul className="list-disc list-outside ml-5 mb-3 last:mb-0 space-y-1" {...props} />
+            <ul className={clsx("list-disc list-outside ml-5 mb-3 last:mb-0 space-y-1", mode === "action" ? "text-slate-200" : "")} {...props} />
           ),
           ol: ({ ...props }) => (
-            <ol className="list-decimal list-outside ml-5 mb-3 last:mb-0 space-y-1" {...props} />
+            <ol className={clsx("list-decimal list-outside ml-5 mb-3 last:mb-0 space-y-1", mode === "action" ? "text-slate-200" : "")} {...props} />
           ),
           li: ({ ...props }) => (
             <li className="pl-1" {...props} />

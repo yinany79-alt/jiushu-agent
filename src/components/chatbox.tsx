@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Bot, User, Sparkles, Zap, Paperclip, X, ArrowUp, Lightbulb, StopCircle } from "lucide-react";
+import { Bot, User, Sparkles, Zap, Paperclip, X, ArrowUp, Lightbulb, StopCircle, Wand2 } from "lucide-react";
 import { clsx } from "clsx";
 import { Markdown } from "@/components/markdown";
 import { useAgenticWorkflow } from "@/components/agentic-workflow";
+import { usePromptBridge } from "@/lib/prompt-bridge";
 
 type Mode = "qa" | "action";
 
@@ -24,433 +25,6 @@ interface FileItem {
   type: string;
 }
 
-export function Chatbox() {
-  const { onActionMessageSend, isScenarioActive } = useAgenticWorkflow();
-  const [mode, setMode] = useState<Mode>("qa");
-  const [planEnabled, setPlanEnabled] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  const hasMessages = messages.length > 0;
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    if (hasMessages) {
-      scrollToBottom();
-    }
-  }, [messages, hasMessages]);
-
-  const removeFile = (fileId: string) => {
-    setFiles((prev) => prev.filter((f) => f.id !== fileId));
-  };
-
-  const stopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-    setIsLoading(false);
-    setIsTyping(false);
-    setMessages((prev) =>
-      prev.map((msg) => ({
-        ...msg,
-        isStreaming: false,
-        content: msg.fullContent || msg.content,
-      }))
-    );
-  };
-
-  const startTypingEffect = (msgId: string, fullContent: string) => {
-    let index = 0;
-    setIsTyping(true);
-
-    const typeNextChar = () => {
-      if (index >= fullContent.length) {
-        setIsTyping(false);
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === msgId
-              ? { ...msg, content: fullContent, isStreaming: false }
-              : msg
-          )
-        );
-        return;
-      }
-
-      const nextIndex = Math.min(index + 3, fullContent.length);
-      const currentContent = fullContent.slice(0, nextIndex);
-      index = nextIndex;
-
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === msgId ? { ...msg, content: currentContent } : msg
-        )
-      );
-
-      typingTimeoutRef.current = setTimeout(typeNextChar, 15);
-    };
-
-    typeNextChar();
-  };
-
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() && files.length === 0) return;
-    if (isLoading || isTyping) {
-      stopGeneration();
-      return;
-    }
-
-    // 如果是行动模式，尝试触发场景
-    if (mode === "action" && onActionMessageSend && input.trim()) {
-      const matched = onActionMessageSend(input.trim());
-      if (matched) {
-        // 场景已触发，不添加普通消息
-        setInput("");
-        return;
-      }
-    }
-
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input,
-      files: files.length > 0 ? files : undefined,
-    };
-
-    const assistantMsgId = (Date.now() + 1).toString();
-    const assistantMsg: Message = {
-      id: assistantMsgId,
-      role: "assistant",
-      content: "",
-      isStreaming: true,
-    };
-
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
-    setInput("");
-    setFiles([]);
-    setIsLoading(true);
-
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    try {
-      if (mode === "qa") {
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: userMsg.content }),
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) throw new Error("API request failed");
-
-        setIsLoading(false);
-
-        if (abortController.signal.aborted) return;
-
-        // 处理流式响应
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let receivedContent = '';
-
-        if (reader) {
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              if (abortController.signal.aborted) break;
-
-              const chunk = decoder.decode(value, { stream: true });
-              receivedContent += chunk;
-
-              // 实时更新消息内容
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === assistantMsgId
-                    ? { ...msg, content: receivedContent }
-                    : msg
-                )
-              );
-            }
-          } finally {
-            reader.releaseLock();
-          }
-        }
-
-        // 标记流式结束
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMsgId
-              ? { ...msg, isStreaming: false, fullContent: receivedContent }
-              : msg
-          )
-        );
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        if (abortController.signal.aborted) return;
-        setIsLoading(false);
-        const fullContent = "收到！让我来帮你执行这个任务。试试输入「帮我微调 Llama3」或「从 BDP 提取特征」来体验 Agentic Workflow！";
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMsgId
-              ? { ...msg, fullContent }
-              : msg
-          )
-        );
-        startTypingEffect(assistantMsgId, fullContent);
-      }
-    } catch (error: any) {
-      if (error.name === "AbortError") {
-        return;
-      }
-      console.error("Send error:", error);
-      setIsLoading(false);
-      setIsTyping(false);
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId
-            ? { ...msg, content: "抱歉，发生了错误，请稍后重试。", isStreaming: false }
-            : msg
-        )
-      );
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-  };
-
-  return (
-    <div className={clsx(
-      "flex flex-col h-full relative overflow-hidden",
-      mode === "qa" ? "bg-gradient-animated bg-grid" : "bg-slate-900"
-    )}>
-      {/* 行动模式背景代码滚动效果 */}
-      {mode === "action" && <CodeBackground />}
-
-      {hasMessages ? (
-        <>
-          {/* 有消息时的布局 - 消息在上面，输入框在底部 */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 relative z-10">
-            <div className="max-w-4xl mx-auto space-y-6">
-              {messages.map((msg, index) => (
-                <div
-                  key={msg.id}
-                  className={`flex gap-4 ${msg.role === "user" ? "flex-row-reverse" : ""} animate-fade-in-up`}
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  {/* 头像 */}
-                  <div
-                    className={clsx(
-                      "flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center shadow-medium",
-                      msg.role === "assistant"
-                        ? "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white"
-                        : "bg-gradient-to-br from-slate-500 to-slate-700 text-white"
-                    )}
-                  >
-                    {msg.role === "assistant" ? <Bot size={20} /> : <User size={20} />}
-                  </div>
-                  {/* 消息气泡 */}
-                  <div
-                    className={clsx(
-                      "px-5 py-3.5 rounded-2xl max-w-[80%] shadow-soft relative",
-                      msg.role === "assistant"
-                        ? (mode === "action" ? "bg-slate-800 text-slate-200 border border-slate-700" : "bg-white text-slate-800 border border-slate-200/70")
-                        : "bg-gradient-to-r from-indigo-600 to-violet-600 text-white"
-                    )}
-                  >
-                    {msg.files && msg.files.length > 0 && (
-                      <div className="mb-2.5 flex flex-wrap gap-2">
-                        {msg.files.map((file) => (
-                          <div
-                            key={file.id}
-                            className={clsx(
-                              "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs",
-                              msg.role === "assistant"
-                                ? (mode === "action" ? "bg-slate-700 text-slate-300 border border-slate-600" : "bg-slate-100 text-slate-700 border border-slate-200")
-                                : "bg-white/20 text-white border border-white/20"
-                            )}
-                          >
-                            <Paperclip size={12} />
-                            <span className="truncate max-w-[120px]">{file.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 消息内容显示 */}
-                    {msg.content && (
-                      <Markdown content={msg.content} mode={mode} />
-                    )}
-
-                    {/* 流式输出指示器 */}
-                    {msg.role === "assistant" && msg.isStreaming && (
-                      <span className="inline-block w-1.5 h-4 ml-1 bg-indigo-500 animate-pulse align-middle rounded-sm" />
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
-
-          {/* 输入区域 - 底部 */}
-          <div className="p-4 md:p-6 relative z-10">
-            <div className="max-w-4xl mx-auto">
-              <InputBox
-                mode={mode}
-                setMode={setMode}
-                planEnabled={planEnabled}
-                setPlanEnabled={setPlanEnabled}
-                input={input}
-                setInput={setInput}
-                files={files}
-                setFiles={setFiles}
-                onSend={handleSend}
-                fileInputRef={fileInputRef}
-                removeFile={removeFile}
-                formatFileSize={formatFileSize}
-                isLoading={isLoading || isTyping}
-              />
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          {/* 初始状态 - 输入框居中 */}
-          <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 relative z-10">
-            <div className="w-full max-w-4xl">
-              {/* 标题区域 */}
-              <div className="text-center mb-10 animate-fade-in-up">
-                <div className={clsx(
-                  "inline-flex items-center gap-2 px-3 py-1 rounded-full border shadow-soft mb-6",
-                  mode === "action"
-                    ? "bg-slate-800/70 border-slate-700"
-                    : "bg-white/70 border border-slate-200/70"
-                )}>
-                  <Sparkles size={14} className={mode === "action" ? "text-emerald-400" : "text-indigo-500"} />
-                  <span className={clsx(
-                    "text-xs font-medium",
-                    mode === "action" ? "text-slate-300" : "text-slate-600"
-                  )}>
-                    Agentic Beta
-                  </span>
-                </div>
-                <h1 className={clsx(
-                  "text-3xl md:text-4xl font-semibold mb-3 tracking-tight",
-                  mode === "action" ? "text-slate-100" : "text-slate-800"
-                )}>
-                  今天有什么可以帮助你？
-                </h1>
-                <p className={clsx(
-                  "max-w-lg mx-auto",
-                  mode === "action" ? "text-slate-400" : "text-slate-500"
-                )}>
-                  {mode === "action"
-                    ? "试试「帮我微调 Llama3」或「从 BDP 提取特征」来体验 Agentic Workflow"
-                    : "用自然语言管理你的 AI 开发任务，从资源申请到模型训练，一键搞定"}
-                </p>
-              </div>
-              {/* 输入框 */}
-              <div className="animate-fade-in-up delay-200">
-                <InputBox
-                  mode={mode}
-                  setMode={setMode}
-                  planEnabled={planEnabled}
-                  setPlanEnabled={setPlanEnabled}
-                  input={input}
-                  setInput={setInput}
-                  files={files}
-                  setFiles={setFiles}
-                  onSend={handleSend}
-                  fileInputRef={fileInputRef}
-                  removeFile={removeFile}
-                  formatFileSize={formatFileSize}
-                  isLoading={isLoading || isTyping}
-                />
-              </div>
-              {/* 快捷提示 */}
-              <div className="mt-8 flex flex-wrap justify-center gap-3 animate-fade-in-up delay-300">
-                {mode === "action" ? (
-                  <>
-                    <QuickPrompt
-                      text="帮我微调 Llama3"
-                      onClick={() => setInput("帮我微调 Llama3")}
-                      mode={mode}
-                    />
-                    <QuickPrompt
-                      text="从 BDP 提取特征"
-                      onClick={() => setInput("从 BDP 提取特征并写入特征中心")}
-                      mode={mode}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <QuickPrompt
-                      text="帮我申请 4 张 A100"
-                      onClick={() => setInput("帮我申请 4 张 A100")}
-                      mode={mode}
-                    />
-                    <QuickPrompt
-                      text="启动一个 Notebook"
-                      onClick={() => setInput("启动一个 Notebook")}
-                      mode={mode}
-                    />
-                    <QuickPrompt
-                      text="查看训练任务状态"
-                      onClick={() => setInput("查看训练任务状态")}
-                      mode={mode}
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-interface QuickPromptProps {
-  text: string;
-  onClick: () => void;
-  mode: Mode;
-}
-
-function QuickPrompt({ text, onClick, mode }: QuickPromptProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={clsx(
-        "px-4 py-2 text-sm rounded-xl shadow-soft hover-lift transition-all duration-200",
-        mode === "action"
-          ? "text-slate-300 bg-slate-800/70 hover:bg-slate-800 border border-slate-700"
-          : "text-slate-600 bg-white/70 hover:bg-white border border-slate-200/70"
-      )}
-    >
-      {text}
-    </button>
-  );
-}
-
 interface InputBoxProps {
   mode: Mode;
   setMode: (mode: Mode) => void;
@@ -462,9 +36,11 @@ interface InputBoxProps {
   setFiles: (files: FileItem[]) => void;
   onSend: (e: React.FormEvent) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   removeFile: (id: string) => void;
   formatFileSize: (bytes: number) => string;
   isLoading?: boolean;
+  isAutoTyping?: boolean;
 }
 
 function InputBox({
@@ -478,10 +54,19 @@ function InputBox({
   setFiles,
   onSend,
   fileInputRef,
+  textareaRef,
   removeFile,
   formatFileSize,
   isLoading = false,
+  isAutoTyping = false,
 }: InputBoxProps) {
+  // Auto-focus when auto-typing starts
+  useEffect(() => {
+    if (isAutoTyping && textareaRef?.current) {
+      textareaRef.current.focus();
+    }
+  }, [isAutoTyping, textareaRef]);
+
   return (
     <form onSubmit={onSend} className="relative">
       <div className={clsx(
@@ -528,6 +113,7 @@ function InputBox({
 
         {/* 文本输入 */}
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={mode === "action" ? "告诉我你想执行什么任务..." : "问我任何问题..."}
@@ -683,6 +269,556 @@ function InputBox({
         </div>
       </div>
     </form>
+  );
+}
+
+interface QuickPromptProps {
+  text: string;
+  onClick: () => void;
+  mode: Mode;
+}
+
+function QuickPrompt({ text, onClick, mode }: QuickPromptProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={clsx(
+        "px-4 py-2 text-sm rounded-xl shadow-soft hover-lift transition-all duration-200",
+        mode === "action"
+          ? "text-slate-300 bg-slate-800/70 hover:bg-slate-800 border border-slate-700"
+          : "text-slate-600 bg-white/70 hover:bg-white border border-slate-200/70"
+      )}
+    >
+      {text}
+    </button>
+  );
+}
+
+export function Chatbox() {
+  const { onActionMessageSend, isScenarioActive, autoFillPrompt, clearAutoFillPrompt } = useAgenticWorkflow();
+  const { startConversion, setConvertedPrompt, setConversionError, bridgeState } = usePromptBridge();
+  const [mode, setMode] = useState<Mode>("qa");
+  const [planEnabled, setPlanEnabled] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [convertingMessageId, setConvertingMessageId] = useState<string | null>(null);
+  const [isAutoTyping, setIsAutoTyping] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const hasMessages = messages.length > 0;
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (hasMessages) {
+      scrollToBottom();
+    }
+  }, [messages, hasMessages]);
+
+  // Handle auto-fill prompt with typewriter effect
+  useEffect(() => {
+    if (autoFillPrompt && clearAutoFillPrompt) {
+      setMode("action");
+      startAutoTyping(autoFillPrompt, () => {
+        clearAutoFillPrompt();
+      });
+    }
+  }, [autoFillPrompt, clearAutoFillPrompt]);
+
+  // Clean up auto typing timeout
+  useEffect(() => {
+    return () => {
+      if (autoTypingTimeoutRef.current) {
+        clearTimeout(autoTypingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const startAutoTyping = (text: string, onComplete?: () => void) => {
+    let index = 0;
+    setIsAutoTyping(true);
+    setInput("");
+
+    const typeNextChar = () => {
+      if (index >= text.length) {
+        setIsAutoTyping(false);
+        if (onComplete) onComplete();
+        return;
+      }
+
+      const nextIndex = Math.min(index + 2, text.length);
+      const currentContent = text.slice(0, nextIndex);
+      index = nextIndex;
+
+      setInput(currentContent);
+      autoTypingTimeoutRef.current = setTimeout(typeNextChar, 30);
+    };
+
+    typeNextChar();
+  };
+
+  const removeFile = (fileId: string) => {
+    setFiles((prev) => prev.filter((f) => f.id !== fileId));
+  };
+
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    setIsLoading(false);
+    setIsTyping(false);
+    setMessages((prev) =>
+      prev.map((msg) => ({
+        ...msg,
+        isStreaming: false,
+        content: msg.fullContent || msg.content,
+      }))
+    );
+  };
+
+  const startTypingEffect = (msgId: string, fullContent: string) => {
+    let index = 0;
+    setIsTyping(true);
+
+    const typeNextChar = () => {
+      if (index >= fullContent.length) {
+        setIsTyping(false);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === msgId
+              ? { ...msg, content: fullContent, isStreaming: false }
+              : msg
+          )
+        );
+        return;
+      }
+
+      const nextIndex = Math.min(index + 3, fullContent.length);
+      const currentContent = fullContent.slice(0, nextIndex);
+      index = nextIndex;
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === msgId ? { ...msg, content: currentContent } : msg
+        )
+      );
+
+      typingTimeoutRef.current = setTimeout(typeNextChar, 15);
+    };
+
+    typeNextChar();
+  };
+
+  const handleConvertToAction = async (msgIndex: number) => {
+    // Get conversation history up to this message
+    const history = messages.slice(0, msgIndex + 1).map(msg => ({
+      role: msg.role,
+      content: msg.fullContent || msg.content,
+    }));
+
+    setConvertingMessageId(messages[msgIndex].id);
+
+    // Start conversion in bridge
+    startConversion(history);
+
+    // Call transform intent API
+    try {
+      const response = await fetch('/api/transform-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history }),
+      });
+
+      if (!response.ok) throw new Error('Transform failed');
+
+      const data = await response.json();
+
+      // Update bridge with converted prompt
+      setConvertedPrompt(data.prompt);
+
+      // Switch to action mode and auto-fill the prompt
+      setMode("action");
+      startAutoTyping(data.prompt);
+    } catch (error) {
+      console.error('Conversion error:', error);
+      setConversionError();
+    } finally {
+      setConvertingMessageId(null);
+    }
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() && files.length === 0) return;
+    if (isLoading || isTyping) {
+      stopGeneration();
+      return;
+    }
+
+    // 如果是行动模式，尝试触发场景
+    if (mode === "action" && onActionMessageSend && input.trim()) {
+      const matched = onActionMessageSend(input.trim());
+      if (matched) {
+        // 场景已触发，不添加普通消息
+        setInput("");
+        return;
+      }
+    }
+
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: input,
+      files: files.length > 0 ? files : undefined,
+    };
+
+    const assistantMsgId = (Date.now() + 1).toString();
+    const assistantMsg: Message = {
+      id: assistantMsgId,
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+    };
+
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setInput("");
+    setFiles([]);
+    setIsLoading(true);
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    try {
+      if (mode === "qa") {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userMsg.content }),
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) throw new Error("API request failed");
+
+        setIsLoading(false);
+
+        if (abortController.signal.aborted) return;
+
+        // 处理流式响应
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let receivedContent = '';
+
+        if (reader) {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (abortController.signal.aborted) break;
+
+              const chunk = decoder.decode(value, { stream: true });
+              receivedContent += chunk;
+
+              // 实时更新消息内容
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMsgId
+                    ? { ...msg, content: receivedContent }
+                    : msg
+                )
+              );
+            }
+          } finally {
+            reader.releaseLock();
+          }
+        }
+
+        // 标记流式结束
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? { ...msg, isStreaming: false, fullContent: receivedContent }
+              : msg
+          )
+        );
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        if (abortController.signal.aborted) return;
+        setIsLoading(false);
+        const fullContent = "收到！让我来帮你执行这个任务。试试输入「帮我微调 Llama3」或「从 BDP 提取特征」来体验 Agentic Workflow！";
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? { ...msg, fullContent }
+              : msg
+          )
+        );
+        startTypingEffect(assistantMsgId, fullContent);
+      }
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        return;
+      }
+      console.error("Send error:", error);
+      setIsLoading(false);
+      setIsTyping(false);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMsgId
+            ? { ...msg, content: "抱歉，发生了错误，请稍后重试。", isStreaming: false }
+            : msg
+        )
+      );
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  };
+
+  return (
+    <div className={clsx(
+      "flex flex-col h-full relative overflow-hidden",
+      mode === "qa" ? "bg-gradient-animated bg-grid" : "bg-slate-900"
+    )}>
+      {/* 行动模式背景代码滚动效果 */}
+      {mode === "action" && <CodeBackground />}
+
+      {hasMessages ? (
+        <>
+          {/* 有消息时的布局 - 消息在上面，输入框在底部 */}
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 relative z-10">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {messages.map((msg, index) => (
+                <div
+                  key={msg.id}
+                  className={`flex flex-col gap-2 ${msg.role === "user" ? "items-end" : "items-start"} animate-fade-in-up`}
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className={`flex gap-4 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                    {/* 头像 */}
+                    <div
+                      className={clsx(
+                        "flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center shadow-medium",
+                        msg.role === "assistant"
+                          ? "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white"
+                          : "bg-gradient-to-br from-slate-500 to-slate-700 text-white"
+                      )}
+                    >
+                      {msg.role === "assistant" ? <Bot size={20} /> : <User size={20} />}
+                    </div>
+                    {/* 消息气泡 */}
+                    <div
+                      className={clsx(
+                        "px-5 py-3.5 rounded-2xl max-w-[80%] shadow-soft relative",
+                        msg.role === "assistant"
+                          ? (mode === "action" ? "bg-slate-800 text-slate-200 border border-slate-700" : "bg-white text-slate-800 border border-slate-200/70")
+                          : "bg-gradient-to-r from-indigo-600 to-violet-600 text-white"
+                      )}
+                    >
+                      {msg.files && msg.files.length > 0 && (
+                        <div className="mb-2.5 flex flex-wrap gap-2">
+                          {msg.files.map((file) => (
+                            <div
+                              key={file.id}
+                              className={clsx(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs",
+                                msg.role === "assistant"
+                                  ? (mode === "action" ? "bg-slate-700 text-slate-300 border border-slate-600" : "bg-slate-100 text-slate-700 border border-slate-200")
+                                  : "bg-white/20 text-white border border-white/20"
+                              )}
+                            >
+                              <Paperclip size={12} />
+                              <span className="truncate max-w-[120px]">{file.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 消息内容显示 */}
+                      {msg.content && (
+                        <Markdown content={msg.content} mode={mode} />
+                      )}
+
+                      {/* 流式输出指示器 */}
+                      {msg.role === "assistant" && msg.isStreaming && (
+                        <span className="inline-block w-1.5 h-4 ml-1 bg-indigo-500 animate-pulse align-middle rounded-sm" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 转化执行按钮 - 仅在 QA 模式的 AI 回复显示 */}
+                  {mode === "qa" && msg.role === "assistant" && !msg.isStreaming && msg.content && (
+                    <div className={clsx("flex", "justify-start", "pl-14")}>
+                      <button
+                        onClick={() => handleConvertToAction(index)}
+                        disabled={convertingMessageId === msg.id || bridgeState === "converting"}
+                        className={clsx(
+                          "group relative inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 overflow-hidden",
+                          convertingMessageId === msg.id
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                            : "bg-white border border-violet-200 text-violet-700 hover:border-violet-400 hover:shadow-lg hover:shadow-violet-500/20"
+                        )}
+                      >
+                        {/* 紫色流光特效 */}
+                        {convertingMessageId !== msg.id && (
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-violet-500/20 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                        )}
+                        {convertingMessageId === msg.id ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                            <span>AI 正在提炼执行意图...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 size={16} className="text-violet-500" />
+                            <span>转化执行</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+
+          {/* 输入区域 - 底部 */}
+          <div className="p-4 md:p-6 relative z-10">
+            <div className="max-w-4xl mx-auto">
+              <InputBox
+                mode={mode}
+                setMode={setMode}
+                planEnabled={planEnabled}
+                setPlanEnabled={setPlanEnabled}
+                input={input}
+                setInput={setInput}
+                files={files}
+                setFiles={setFiles}
+                onSend={handleSend}
+                fileInputRef={fileInputRef}
+                textareaRef={textareaRef}
+                removeFile={removeFile}
+                formatFileSize={formatFileSize}
+                isLoading={isLoading || isTyping}
+                isAutoTyping={isAutoTyping}
+              />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* 初始状态 - 输入框居中 */}
+          <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 relative z-10">
+            <div className="w-full max-w-4xl">
+              {/* 标题区域 */}
+              <div className="text-center mb-10 animate-fade-in-up">
+                <div className={clsx(
+                  "inline-flex items-center gap-2 px-3 py-1 rounded-full border shadow-soft mb-6",
+                  mode === "action"
+                    ? "bg-slate-800/70 border-slate-700"
+                    : "bg-white/70 border border-slate-200/70"
+                )}>
+                  <Sparkles size={14} className={mode === "action" ? "text-emerald-400" : "text-indigo-500"} />
+                  <span className={clsx(
+                    "text-xs font-medium",
+                    mode === "action" ? "text-slate-300" : "text-slate-600"
+                  )}>
+                    Agentic Beta
+                  </span>
+                </div>
+                <h1 className={clsx(
+                  "text-3xl md:text-4xl font-semibold mb-3 tracking-tight",
+                  mode === "action" ? "text-slate-100" : "text-slate-800"
+                )}>
+                  今天有什么可以帮助你？
+                </h1>
+                <p className={clsx(
+                  "max-w-lg mx-auto",
+                  mode === "action" ? "text-slate-400" : "text-slate-500"
+                )}>
+                  {mode === "action"
+                    ? "试试「帮我微调 Llama3」或「从 BDP 提取特征」来体验 Agentic Workflow"
+                    : "用自然语言管理你的 AI 开发任务，从资源申请到模型训练，一键搞定"}
+                </p>
+              </div>
+              {/* 输入框 */}
+              <div className="animate-fade-in-up delay-200">
+                <InputBox
+                  mode={mode}
+                  setMode={setMode}
+                  planEnabled={planEnabled}
+                  setPlanEnabled={setPlanEnabled}
+                  input={input}
+                  setInput={setInput}
+                  files={files}
+                  setFiles={setFiles}
+                  onSend={handleSend}
+                  fileInputRef={fileInputRef}
+                  textareaRef={textareaRef}
+                  removeFile={removeFile}
+                  formatFileSize={formatFileSize}
+                  isLoading={isLoading || isTyping}
+                  isAutoTyping={isAutoTyping}
+                />
+              </div>
+              {/* 快捷提示 */}
+              <div className="mt-8 flex flex-wrap justify-center gap-3 animate-fade-in-up delay-300">
+                {mode === "action" ? (
+                  <>
+                    <QuickPrompt
+                      text="帮我微调 Llama3"
+                      onClick={() => setInput("帮我微调 Llama3")}
+                      mode={mode}
+                    />
+                    <QuickPrompt
+                      text="从 BDP 提取特征"
+                      onClick={() => setInput("从 BDP 提取特征并写入特征中心")}
+                      mode={mode}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <QuickPrompt
+                      text="帮我申请 4 张 A100"
+                      onClick={() => setInput("帮我申请 4 张 A100")}
+                      mode={mode}
+                    />
+                    <QuickPrompt
+                      text="启动一个 Notebook"
+                      onClick={() => setInput("启动一个 Notebook")}
+                      mode={mode}
+                    />
+                    <QuickPrompt
+                      text="查看训练任务状态"
+                      onClick={() => setInput("查看训练任务状态")}
+                      mode={mode}
+                    />
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

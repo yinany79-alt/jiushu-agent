@@ -85,6 +85,63 @@ body {
 }
 
 /* 动画关键帧 */
+
+/* Streaming light effect for data strategy node */
+@keyframes streamingLight {
+  0% {
+    background-position: -200% 0;
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    background-position: 200% 0;
+    opacity: 0.3;
+  }
+}
+
+.animate-streaming-light {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(6, 182, 212, 0.4) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: streamingLight 2s ease-in-out infinite;
+}
+
+/* Blue pulse for active node */
+@keyframes bluePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+}
+
+.animate-blue-pulse {
+  animation: bluePulse 2s ease-in-out infinite;
+}
+
+/* Breathing effect for execution node */
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 0.9;
+  }
+}
+
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -134,8 +191,12 @@ body {
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 @keyframes codeScroll {
@@ -286,4 +347,103 @@ body {
 ::selection {
   background: rgba(79, 70, 229, 0.15);
   color: #1e293b;
+}
+
+/* 扫描线动画 */
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(400%);
+  }
+}
+
+.animate-scan {
+  animation: scan 2s ease-in-out infinite;
+}
+
+/* 淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* 脉冲光晕效果 */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.0);
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.0),
+                0 0 0 4px rgba(59, 130, 246, 0.05),
+                0 0 20px rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* 成功高亮闪烁 */
+@keyframes successFlash {
+  0% { background-color: rgba(16, 185, 129, 0.2); }
+  50% { background-color: rgba(16, 185, 129, 0.35); }
+  100% { background-color: rgba(16, 185, 129, 0.1); }
+}
+
+.animate-success-flash {
+  animation: successFlash 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 失败常驻高亮 */
+.animate-failed-persist {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* 日志滚动动画 */
+@keyframes logSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-log-slide-in {
+  animation: logSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* 数字滚动 */
+@keyframes countUp {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+
+.animate-count-up {
+  animation: countUp 0.5s ease-out forwards;
+}
+
+/* 悬浮助手呼吸效果 */
+@keyframes assistantBreathe {
+  0%, 100% { transform: scale(1); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25); }
+  50% { transform: scale(1.05); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4); }
+}
+
+.animate-assistant-breathe {
+  animation: assistantBreathe 3s ease-in-out infinite;
 }

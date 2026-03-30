@@ -6,56 +6,151 @@ import {
   ChevronDown,
   Bot,
   Activity,
-  Layout,
-  Server,
-  Database,
-  GitBranch,
-  Settings,
+  LayoutDashboard,
+  Network,
   Sparkles,
+  Cpu,
+  Brain,
+  BrainCircuit,
+  GitBranch,
+  Database,
+  HardDrive,
+  Workflow,
+  Package,
+  FolderOpen,
 } from "lucide-react";
 import { clsx } from "clsx";
+
+export type ActiveTab =
+  | "hub"
+  | "chat"
+  | "monitor"
+  | "workspace-detail"
+  | "model-square"
+  | "experience-center"
+  | "online-inference"
+  | "offline-inference"
+  | "model-dev"
+  | "model-finetune"
+  | "model-manage"
+  | "data-manage"
+  | "image-manage"
+  | "workflow-dev"
+  | "component-manage";
 
 interface NavItemProps {
   icon: React.ReactNode;
   label: string;
   active?: boolean;
   onClick?: () => void;
+  badge?: string;
+  compact?: boolean;
 }
 
-function NavItem({ icon, label, active, onClick }: NavItemProps) {
+function NavItem({ icon, label, active, onClick, badge, compact }: NavItemProps) {
   return (
     <button
       onClick={onClick}
       className={clsx(
-        "group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200",
+        "group w-full flex items-center justify-between gap-2 px-3 rounded-xl text-sm transition-all duration-200",
+        compact ? "py-1.5" : "py-2.5",
         active
           ? "bg-gradient-to-r from-indigo-50 to-violet-50 text-indigo-700 font-medium shadow-sm"
           : "text-slate-600 hover:bg-slate-100/80"
       )}
     >
-      <span
-        className={clsx(
-          "transition-colors duration-200",
-          active ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
-        )}
-      >
-        {icon}
-      </span>
-      <span>{label}</span>
+      <div className="flex items-center gap-3">
+        <span
+          className={clsx(
+            "transition-colors duration-200 flex-shrink-0",
+            active ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+          )}
+        >
+          {icon}
+        </span>
+        <span className={clsx(compact && "text-xs")}>{label}</span>
+      </div>
+      {badge && (
+        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded-full">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
 
-export function Sidebar() {
-  const [platformOpen, setPlatformOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>("chat");
+interface SectionHeaderProps {
+  label: string;
+  icon?: React.ReactNode;
+  open?: boolean;
+  onToggle?: () => void;
+}
+
+function SectionHeader({ label, icon, open, onToggle }: SectionHeaderProps) {
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-700 transition-colors"
+    >
+      <span className="flex items-center gap-1.5">
+        {icon}
+        {label}
+      </span>
+      {onToggle && (
+        open ? (
+          <ChevronDown size={14} className="text-slate-400" />
+        ) : (
+          <ChevronRight size={14} className="text-slate-400" />
+        )
+      )}
+    </button>
+  );
+}
+
+interface DividerWithLabelProps {
+  label: string;
+}
+
+function DividerWithLabel({ label }: DividerWithLabelProps) {
+  return (
+    <div className="flex items-center gap-2 my-2 px-1">
+      <div className="flex-1 h-px bg-slate-200" />
+      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+        {label}
+      </span>
+      <div className="flex-1 h-px bg-slate-200" />
+    </div>
+  );
+}
+
+interface SidebarProps {
+  activeTab?: ActiveTab;
+  onTabChange?: (tab: ActiveTab) => void;
+}
+
+export function Sidebar({ activeTab: externalActiveTab, onTabChange }: SidebarProps) {
+  const [internalActiveTab, setInternalActiveTab] = useState<ActiveTab>("chat");
+  const [dataManageOpen, setDataManageOpen] = useState(false);
+  const [assetOpen, setAssetOpen] = useState(true);
+  const [modelServiceOpen, setModelServiceOpen] = useState(true);
+  const [modelTrainOpen, setModelTrainOpen] = useState(true);
+  const [workflowOpen, setWorkflowOpen] = useState(true);
+
+  const activeTab = externalActiveTab ?? internalActiveTab;
+
+  const handleTabChange = (tab: ActiveTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalActiveTab(tab);
+    }
+  };
 
   return (
     <div className="w-64 h-full glass-strong border-r border-white/50 flex flex-col shadow-soft">
       {/* Logo 区域 */}
       <div className="p-5 border-b border-slate-200/60">
         <div className="flex items-center gap-2.5">
-          {/* Logo 图标 */}
           <div className="relative">
             <svg
               width="48"
@@ -69,7 +164,6 @@ export function Sidebar() {
               <path d="M30.591 107.756L0 160.787H100.823V107.756H30.591Z" fill="#3768FA"/>
             </svg>
           </div>
-          {/* 文字 */}
           <div className="flex flex-col">
             <span className="text-base font-semibold text-slate-800 tracking-tight">
               九数算法中台
@@ -84,69 +178,208 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* 导航菜单 */}
-      <div className="flex-1 p-3 space-y-1.5 overflow-y-auto">
-        {/* 平台功能 - 折叠区域 */}
-        <div className="mb-3">
-          <button
-            onClick={() => setPlatformOpen(!platformOpen)}
-            className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-700 transition-colors"
-          >
-            <span className="flex items-center gap-2">
-              <Layout size={14} />
-              平台功能
-            </span>
-            {platformOpen ? (
-              <ChevronDown size={14} className="text-slate-400" />
-            ) : (
-              <ChevronRight size={14} className="text-slate-400" />
-            )}
-          </button>
+      {/* 顶部：核心智能入口 - 固定不滚动 */}
+      <div className="p-3 space-y-1.5 border-b border-slate-100">
+        <div className="mb-1">
+          <SectionHeader label="智能中心" icon={<Sparkles size={14} className="text-indigo-500" />} />
+        </div>
+        <NavItem
+          icon={<BrainCircuit size={18} />}
+          label="智能中枢"
+          active={activeTab === "hub"}
+          onClick={() => handleTabChange("hub")}
+        />
+        <NavItem
+          icon={<Bot size={18} />}
+          label="智能开发"
+          active={activeTab === "chat"}
+          onClick={() => handleTabChange("chat")}
+        />
+        <NavItem
+          icon={<Activity size={18} />}
+          label="监控中心"
+          active={activeTab === "monitor"}
+          onClick={() => handleTabChange("monitor")}
+        />
+      </div>
 
-          {platformOpen && (
-            <div className="mt-1.5 ml-2 space-y-1 border-l border-slate-200/80 pl-3">
+      {/* 分隔线 */}
+      <DividerWithLabel label="系统功能" />
+
+      {/* 底部：系统原功能区 - 可滚动 */}
+      <div className="flex-1 p-3 pt-0 space-y-1 overflow-y-auto">
+        {/* 工作空间 */}
+        <div>
+          <SectionHeader label="工作空间" icon={<LayoutDashboard size={14} />} />
+          <div className="ml-2 space-y-0.5 border-l border-slate-200/50 pl-3">
+            <NavItem
+              compact
+              icon={<FolderOpen size={14} />}
+              label="工作空间详情"
+              active={activeTab === "workspace-detail"}
+              onClick={() => handleTabChange("workspace-detail")}
+            />
+          </div>
+        </div>
+
+        {/* 模型服务 */}
+        <div className="mt-1">
+          <SectionHeader
+            label="模型服务"
+            icon={<Network size={14} />}
+            open={modelServiceOpen}
+            onToggle={() => setModelServiceOpen(!modelServiceOpen)}
+          />
+          {modelServiceOpen && (
+            <div className="ml-2 space-y-0.5 border-l border-slate-200/50 pl-3">
               <NavItem
-                icon={<Server size={16} />}
-                label="资源管理"
-                onClick={() => setActiveTab("resources")}
+                compact
+                icon={<Sparkles size={14} />}
+                label="模型广场"
+                active={activeTab === "model-square"}
+                onClick={() => handleTabChange("model-square")}
               />
               <NavItem
-                icon={<Database size={16} />}
-                label="数据中心"
-                onClick={() => setActiveTab("data")}
+                compact
+                icon={<Cpu size={14} />}
+                label="体验中心"
+                active={activeTab === "experience-center"}
+                onClick={() => handleTabChange("experience-center")}
               />
               <NavItem
-                icon={<GitBranch size={16} />}
-                label="训练任务"
-                onClick={() => setActiveTab("train")}
+                compact
+                icon={<Network size={14} />}
+                label="在线推理"
+                active={activeTab === "online-inference"}
+                onClick={() => handleTabChange("online-inference")}
               />
               <NavItem
-                icon={<Settings size={16} />}
-                label="系统设置"
-                onClick={() => setActiveTab("settings")}
+                compact
+                icon={<HardDrive size={14} />}
+                label="离线推理"
+                active={activeTab === "offline-inference"}
+                onClick={() => handleTabChange("offline-inference")}
               />
             </div>
           )}
         </div>
 
-        {/* 分隔线 */}
-        <div className="h-px bg-gradient-to-r from-transparent via-slate-200/60 to-transparent my-2" />
+        {/* 模型训练 */}
+        <div className="mt-1">
+          <SectionHeader
+            label="模型训练"
+            icon={<Brain size={14} />}
+            open={modelTrainOpen}
+            onToggle={() => setModelTrainOpen(!modelTrainOpen)}
+          />
+          {modelTrainOpen && (
+            <div className="ml-2 space-y-0.5 border-l border-slate-200/50 pl-3">
+              <NavItem
+                compact
+                icon={<Brain size={14} />}
+                label="模型开发"
+                active={activeTab === "model-dev"}
+                onClick={() => handleTabChange("model-dev")}
+              />
+              <NavItem
+                compact
+                icon={<GitBranch size={14} />}
+                label="模型精调"
+                active={activeTab === "model-finetune"}
+                onClick={() => handleTabChange("model-finetune")}
+              />
+              <NavItem
+                compact
+                icon={<Package size={14} />}
+                label="模型管理"
+                active={activeTab === "model-manage"}
+                onClick={() => handleTabChange("model-manage")}
+              />
+            </div>
+          )}
+        </div>
 
-        {/* 智能开发 */}
-        <NavItem
-          icon={<Bot size={18} />}
-          label="智能开发"
-          active={activeTab === "chat"}
-          onClick={() => setActiveTab("chat")}
-        />
+        {/* 资产管理 */}
+        <div className="mt-1">
+          <SectionHeader
+            label="资产管理"
+            icon={<Database size={14} />}
+            open={assetOpen}
+            onToggle={() => setAssetOpen(!assetOpen)}
+          />
+          {assetOpen && (
+            <div className="ml-2 space-y-0.5 border-l border-slate-200/50 pl-3">
+              {/* 数据管理 - 二级菜单 */}
+              <div>
+                <button
+                  onClick={() => setDataManageOpen(!dataManageOpen)}
+                  className="group w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs text-slate-600 hover:bg-slate-100/80 transition-all duration-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-slate-400 group-hover:text-slate-600">
+                      <Database size={14} />
+                    </span>
+                    数据管理
+                  </div>
+                  {dataManageOpen ? (
+                    <ChevronDown size={14} className="text-slate-400" />
+                  ) : (
+                    <ChevronRight size={14} className="text-slate-400" />
+                  )}
+                </button>
+                {dataManageOpen && (
+                  <div className="ml-4 mt-0.5 space-y-0.5 border-l border-slate-200/50 pl-2">
+                    <button className="w-full text-left px-2 py-1 text-[11px] text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-50">
+                      数据集列表
+                    </button>
+                    <button className="w-full text-left px-2 py-1 text-[11px] text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-50">
+                      数据标注
+                    </button>
+                    <button className="w-full text-left px-2 py-1 text-[11px] text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-50">
+                      数据版本
+                    </button>
+                  </div>
+                )}
+              </div>
+              <NavItem
+                compact
+                icon={<HardDrive size={14} />}
+                label="镜像管理"
+                active={activeTab === "image-manage"}
+                onClick={() => handleTabChange("image-manage")}
+              />
+            </div>
+          )}
+        </div>
 
-        {/* 监控中心 */}
-        <NavItem
-          icon={<Activity size={18} />}
-          label="监控中心"
-          active={activeTab === "monitor"}
-          onClick={() => setActiveTab("monitor")}
-        />
+        {/* AIFlow工作流 */}
+        <div className="mt-1">
+          <SectionHeader
+            label="AIFlow工作流"
+            icon={<Workflow size={14} />}
+            open={workflowOpen}
+            onToggle={() => setWorkflowOpen(!workflowOpen)}
+          />
+          {workflowOpen && (
+            <div className="ml-2 space-y-0.5 border-l border-slate-200/50 pl-3">
+              <NavItem
+                compact
+                icon={<Workflow size={14} />}
+                label="工作流开发"
+                badge="New"
+                active={activeTab === "workflow-dev"}
+                onClick={() => handleTabChange("workflow-dev")}
+              />
+              <NavItem
+                compact
+                icon={<Package size={14} />}
+                label="组件管理"
+                active={activeTab === "component-manage"}
+                onClick={() => handleTabChange("component-manage")}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 底部提示 */}

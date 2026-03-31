@@ -365,6 +365,7 @@ export function PolicyDrawer({ policy, onClose, onUpdateSettings }: PolicyDrawer
     <AnimatePresence>
       {/* 背景遮罩 */}
       <motion.div
+        key="backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -374,6 +375,7 @@ export function PolicyDrawer({ policy, onClose, onUpdateSettings }: PolicyDrawer
 
       {/* 抽屉 */}
       <motion.div
+        key="drawer"
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}

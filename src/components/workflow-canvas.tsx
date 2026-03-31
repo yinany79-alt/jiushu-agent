@@ -13,6 +13,7 @@ import ReactFlow, {
   Connection,
   MarkerType,
 } from "reactflow";
+import type { ReactFlowInstance } from "reactflow";
 import "reactflow/dist/style.css";
 import { clsx } from "clsx";
 import { CanvasNode, NodeStatus } from "@/lib/scenarios";
@@ -95,7 +96,7 @@ interface WorkflowCanvasProps {
 }
 
 function WorkflowCanvasInner({ nodes, className }: WorkflowCanvasProps) {
-  const reactFlowRef = useRef<ReactFlow | null>(null);
+  const reactFlowRef = useRef<ReactFlowInstance | null>(null);
 
   // 只过滤出可见的节点
   const visibleNodes = useMemo(() => {

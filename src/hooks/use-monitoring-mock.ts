@@ -154,7 +154,7 @@ const llamaTaskLineage = {
     { id: "llama_e4", source: "llama_job_2", target: "llama_model" },
     { id: "llama_e5", source: "llama_model", target: "llama_service" },
   ],
-};
+} as { nodes: LineageNode[], edges: LineageEdge[] };
 
 const qwenTaskLineage = {
   nodes: [
@@ -168,7 +168,7 @@ const qwenTaskLineage = {
     { id: "qwen_e2", source: "qwen_job_1", target: "qwen_job_2" },
     { id: "qwen_e3", source: "qwen_job_2", target: "qwen_model" },
   ],
-};
+} as { nodes: LineageNode[], edges: LineageEdge[] };
 
 const videoTaskLineage = {
   nodes: [
@@ -186,7 +186,7 @@ const videoTaskLineage = {
     { id: "video_e4", source: "video_job_2", target: "video_model" },
     { id: "video_e5", source: "video_model", target: "video_service" },
   ],
-};
+} as { nodes: LineageNode[], edges: LineageEdge[] };
 
 // ========== 基础任务数据 ==========
 

@@ -8,7 +8,9 @@
       "Read(//Users/yangyangyinan.8/jiushu_agent/src/hooks/**)",
       "Bash(pkill -f \"next dev\")",
       "Bash(pkill -f node)",
-      "Bash(curl -s http://localhost:3002)"
+      "Bash(curl -s http://localhost:3002)",
+      "Bash(ls -la *.md)",
+      "Read(//Users/yangyinan.8/jiushu_agent/**)"
     ]
   }
 }

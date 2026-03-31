@@ -305,13 +305,13 @@ export function useAutoHostingMock() {
         if (f.id === flowId) {
           const newSteps = f.steps.map((s) => {
             if (s.step === step) {
-              return { ...s, status, message };
+              return { ...s, status, message } as StepDetail;
             }
             // 如果当前步骤已激活，之前的步骤设为完成
             if (status === "active") {
               const stepOrder: FlowStep[] = ["capture", "diagnose", "decision", "execute", "complete"];
               if (stepOrder.indexOf(s.step) < stepOrder.indexOf(step)) {
-                return { ...s, status: "completed" };
+                return { ...s, status: "completed" } as StepDetail;
               }
             }
             return s;

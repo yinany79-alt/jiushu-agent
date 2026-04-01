@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AILab - Agentic Notebook</title>
+<style>
+:root {
+  --bg-primary: #111827;
+  --bg-secondary: #1f2937;
+  --bg-sidebar: #161b26;
+  --bg-cell: #0d1117;
+  --bg-hover: #1e2536;
+  --bg-input: #0f1520;
+  --border: #2d3748;
+  --border-light: #374151;
+  --text-primary: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --green: #22c55e;
+  --red: #ef4444;
+  --orange: #f59e0b;
+  --purple: #a78bfa;
+  --cyan: #22d3ee;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; background:var(--bg-primary); color:var(--text-primary); height:100vh; overflow:hidden; font-size:13px; }
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-thumb { background:#374151; border-radius:3px; }
+::-webkit-scrollbar-track { background:transparent; }
+button { font-family:inherit; }
+
+.app { display:flex; flex-direction:column; height:100vh; }
+
+/* ===== Menu Bar ===== */
+.menubar {
+  height:28px; background:#0f1219; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 10px; gap:2px; flex-shrink:0;
+}
+.menu-item { padding:3px 8px; font-size:12px; color:var(--text-secondary); cursor:pointer; border-radius:3px; }
+.menu-item:hover { background:var(--bg-hover); color:var(--text-primary); }
+.menubar-spacer { flex:1; }
+.menubar-title { font-size:11px; color:var(--text-muted); }
+
+/* ===== Toolbar ===== */
+.toolbar {
+  height:38px; background:var(--bg-secondary); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 8px; gap:2px; flex-shrink:0;
+}
+.tb-btn {
+  background:transparent; border:none; color:var(--text-secondary); font-size:12px;
+  padding:5px 7px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:4px;
+  transition:all .12s; white-space:nowrap;
+}
+.tb-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
+.tb-btn svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.tb-sep { width:1px; height:20px; background:var(--border); margin:0 4px; flex-shrink:0; }
+.tb-select {
+  background:var(--bg-primary); border:1px solid var(--border); color:var(--text-secondary);
+  font-size:11px; padding:3px 6px; border-radius:4px; cursor:pointer; outline:none;
+}
+.tb-spacer { flex:1; }
+.tb-kernel {
+  display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-secondary);
+  padding:3px 8px; border-radius:4px; background:var(--bg-primary); border:1px solid var(--border);
+}
+.tb-kernel-dot { width:8px; height:8px; border-radius:50%; background:var(--green); flex-shrink:0; }
+
+/* ===== Resource Pill (toolbar right) ===== */
+.res-pill {
+  display:flex; align-items:center; gap:10px; padding:3px 10px; border-radius:6px;
+  background:var(--bg-primary); border:1px solid var(--border); position:relative; cursor:default;
+  font-size:11px; color:var(--text-muted); margin-left:6px;
+}
+.res-metric { display:flex; align-items:center; gap:4px; }
+.res-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.res-label { color:var(--text-muted); }
+.res-val { font-weight:600; font-variant-numeric:tabular-nums; }
+/* Hover popover */
+.res-popover {
+  display:none; position:absolute; top:calc(100% + 8px); right:0; z-index:500;
+  background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:10px;
+  padding:16px 18px; width:300px; box-shadow:0 12px 32px rgba(0,0,0,.45);
+  animation:fadeIn .15s ease;
+}
+.res-pill:hover .res-popover { display:block; }
+.res-pop-title { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; }
+.res-pop-row { display:flex; justify-content:space-between; align-items:center; padding:5px 0; font-size:12px; }
+.res-pop-row+.res-pop-row { border-top:1px solid var(--border); }
+.res-pop-bar-bg { width:100px; height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin-left:8px; }
+.res-pop-bar { height:100%; border-radius:3px; transition:width .5s ease; }
+.res-pop-val { font-weight:600; font-variant-numeric:tabular-nums; min-width:36px; text-align:right; }
+.res-graph { display:flex; align-items:flex-end; gap:1px; height:24px; margin-top:4px; }
+.res-graph-bar { width:4px; border-radius:1px; transition:height .5s; opacity:.7; }
+
+/* ===== Main ===== */
+.main-area { display:flex; flex:1; overflow:hidden; min-height:0; }
+
+/* ===== Activity Bar ===== */
+.activity-bar {
+  width:48px; background:#0c1017; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; align-items:center; padding-top:6px; gap:2px; flex-shrink:0;
+}
+.act-btn {
+  width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+  border:none; background:transparent; color:var(--text-muted); cursor:pointer;
+  border-radius:6px; border-left:2px solid transparent; transition:all .12s; position:relative;
+}
+.act-btn:hover { color:var(--text-secondary); background:var(--bg-hover); }
+.act-btn.active { color:var(--accent); border-left-color:var(--accent); background:rgba(59,130,246,.08); }
+.act-btn.active-ai { color:var(--purple); border-left-color:var(--purple); background:rgba(167,139,250,.08); }
+.act-btn svg { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.act-btn .badge {
+  position:absolute; top:4px; right:4px; width:16px; height:16px; border-radius:50%;
+  background:var(--purple); color:#fff; font-size:9px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+.act-spacer { flex:1; }
+
+/* ===== Left Panel ===== */
+.left-panel {
+  width:320px; background:var(--bg-sidebar); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; flex-shrink:0; overflow:hidden;
+}
+.panel-header {
+  height:36px; padding:0 12px; display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid var(--border); flex-shrink:0;
+}
+.panel-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); }
+.panel-header-actions { display:flex; gap:2px; }
+.panel-icon-btn {
+  width:24px; height:24px; display:flex; align-items:center; justify-content:center;
+  background:transparent; border:none; color:var(--text-muted); cursor:pointer; border-radius:4px;
+}
+.panel-icon-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
+.panel-icon-btn svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.panel-body { flex:1; overflow-y:auto; min-height:0; }
+
+/* ===== File Browser ===== */
+.file-tree { padding:4px 0; }
+.file-item {
+  display:flex; align-items:center; gap:6px; padding:4px 12px 4px 0;
+  cursor:pointer; font-size:12px; color:var(--text-secondary); transition:background .1s;
+  user-select:none; height:26px;
+}
+.file-item:hover { background:var(--bg-hover); }
+.file-item.selected { background:rgba(59,130,246,.12); color:var(--text-primary); }
+.file-icon { width:16px; height:16px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.file-icon svg { width:14px; height:14px; }
+.file-arrow { width:16px; height:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:transform .15s; }
+.file-arrow.open { transform:rotate(90deg); }
+.file-arrow svg { width:10px; height:10px; stroke:var(--text-muted); fill:none; stroke-width:2; }
+.file-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.file-size { font-size:10px; color:var(--text-muted); flex-shrink:0; }
+.file-children { display:none; }
+.file-children.open { display:block; }
+
+/* ===== Chat Panel (in left panel) ===== */
+.chat-panel { display:flex; flex-direction:column; height:100%; }
+
+/* Chat History Sidebar Top */
+.chat-history-bar {
+  padding:6px 10px; border-bottom:1px solid var(--border); flex-shrink:0;
+  display:flex; align-items:center; gap:6px;
+}
+.chat-history-select {
+  flex:1; background:var(--bg-input); border:1px solid var(--border); color:var(--text-primary);
+  font-size:11.5px; padding:5px 8px; border-radius:6px; cursor:pointer; outline:none;
+  appearance:none; -webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 8px center; padding-right:22px;
+}
+.chat-new-btn {
+  width:28px; height:28px; display:flex; align-items:center; justify-content:center;
+  background:var(--accent); border:none; border-radius:6px; color:#fff; cursor:pointer; flex-shrink:0;
+}
+.chat-new-btn:hover { background:var(--accent-hover); }
+.chat-new-btn svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2.5; stroke-linecap:round; }
+
+.chat-messages { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px; min-height:0; }
+.chat-msg { display:flex; gap:8px; animation:fadeIn .3s ease; }
+.chat-avatar {
+  width:26px; height:26px; border-radius:6px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;
+}
+.chat-avatar.ai { background:linear-gradient(135deg,var(--accent),var(--purple)); color:#fff; }
+.chat-avatar.user { background:var(--border-light); color:var(--text-secondary); }
+.chat-bubble { flex:1; min-width:0; }
+.chat-sender { font-size:10px; font-weight:600; color:var(--text-muted); margin-bottom:3px; }
+.chat-text {
+  font-size:12px; line-height:1.7; color:var(--text-secondary);
+  background:var(--bg-primary); border-radius:8px; padding:9px 11px;
+}
+.chat-text code { background:var(--bg-cell); padding:1px 5px; border-radius:3px; font-size:11px; color:var(--cyan); }
+.chat-text .plan-item { padding:1px 0; }
+.chat-text .plan-num { color:var(--accent); font-weight:600; }
+
+.chat-input-area {
+  padding:8px 10px; border-top:1px solid var(--border); flex-shrink:0;
+}
+.chat-context-bar { display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap; }
+.chat-ctx-tag {
+  font-size:9px; padding:2px 7px; border-radius:10px;
+  background:rgba(59,130,246,.08); color:var(--accent); border:1px solid rgba(59,130,246,.15);
+}
+.chat-input-wrap {
+  display:flex; background:var(--bg-input); border:1px solid var(--border); border-radius:10px;
+  overflow:hidden; transition:border-color .15s; align-items:flex-end;
+}
+.chat-input-wrap:focus-within { border-color:var(--accent); }
+.chat-input {
+  flex:1; background:transparent; border:none; color:var(--text-primary);
+  font-size:12px; padding:9px 10px; outline:none; resize:none; font-family:inherit;
+  min-height:18px; max-height:100px; line-height:1.5;
+}
+.chat-input::placeholder { color:var(--text-muted); }
+.chat-send-btn {
+  width:30px; height:30px; margin:3px; background:var(--accent); border:none;
+  border-radius:7px; color:#fff; cursor:pointer; display:flex; align-items:center;
+  justify-content:center; flex-shrink:0;
+}
+.chat-send-btn:hover { background:var(--accent-hover); }
+.chat-send-btn svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; }
+
+/* ===== Notebook ===== */
+.notebook-wrapper { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+.tab-bar {
+  height:34px; background:var(--bg-secondary); display:flex; align-items:stretch;
+  border-bottom:1px solid var(--border); flex-shrink:0; overflow-x:auto;
+}
+.tab-item {
+  display:flex; align-items:center; gap:6px; padding:0 14px;
+  font-size:12px; color:var(--text-muted); cursor:pointer;
+  border-right:1px solid var(--border); white-space:nowrap;
+}
+.tab-item:hover { background:var(--bg-hover); color:var(--text-secondary); }
+.tab-item.active { background:var(--bg-primary); color:var(--text-primary); border-bottom:2px solid var(--accent); }
+.tab-close { width:16px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:3px; opacity:0; }
+.tab-item:hover .tab-close { opacity:.6; }
+
+.notebook { flex:1; overflow-y:auto; padding:16px 50px; }
+
+.cell { display:flex; margin-bottom:2px; border-radius:4px; border-left:3px solid transparent; transition:all .12s; }
+.cell:hover { background:rgba(255,255,255,.01); }
+.cell.active { border-left-color:var(--accent); background:rgba(59,130,246,.02); }
+.cell.ai-gen { border-left-color:var(--purple); background:rgba(167,139,250,.03); }
+.cell-gutter {
+  width:55px; flex-shrink:0; padding:10px 6px 10px 0; text-align:right;
+  font-size:11px; color:var(--text-muted); font-family:'SF Mono',Monaco,Consolas,monospace; user-select:none;
+}
+.cell-body { flex:1; min-width:0; }
+.cell-code {
+  background:var(--bg-cell); border-radius:4px; padding:10px 14px;
+  font-family:'SF Mono',Monaco,Consolas,monospace; font-size:12.5px;
+  line-height:1.65; overflow-x:auto; white-space:pre;
+}
+.cell-output { padding:8px 14px; font-family:'SF Mono',Monaco,Consolas,monospace; font-size:12px; line-height:1.5; color:var(--text-secondary); }
+.cell-output-error {
+  background:rgba(239,68,68,.05); border-left:3px solid var(--red);
+  padding:10px 14px; margin:4px 0; border-radius:0 4px 4px 0;
+}
+.err-name { color:var(--red); font-weight:700; }
+.err-trace { color:#f87171; }
+.cell-md { padding:10px 14px; line-height:1.7; }
+.cell-md h2 { font-size:17px; font-weight:700; margin-bottom:4px; }
+.cell-md p { color:var(--text-secondary); font-size:13px; }
+
+.ai-fix-bar { padding:6px 14px; display:flex; align-items:center; gap:10px; }
+.ai-fix-btn {
+  padding:5px 14px; background:linear-gradient(135deg,var(--accent),var(--purple));
+  border:none; border-radius:6px; color:#fff; font-size:11.5px; font-weight:600;
+  cursor:pointer; transition:all .12s;
+}
+.ai-fix-btn:hover { opacity:.85; transform:translateY(-1px); }
+.ai-fix-btn.loading { opacity:.6; cursor:wait; }
+.ai-fix-info { font-size:11.5px; color:var(--orange); }
+.ai-badge {
+  display:inline-block; padding:2px 8px; background:rgba(167,139,250,.12);
+  color:var(--purple); font-size:10px; font-weight:600; border-radius:10px; margin-bottom:4px;
+}
+
+/* ===== Terminal ===== */
+.bottom-panel {
+  height:180px; background:#0b0e14; border-top:1px solid var(--border);
+  display:none; flex-direction:column; flex-shrink:0;
+}
+.bottom-panel.open { display:flex; }
+.bottom-tabs {
+  height:30px; display:flex; align-items:stretch; border-bottom:1px solid var(--border);
+  background:var(--bg-secondary); flex-shrink:0;
+}
+.bottom-tab {
+  padding:0 14px; font-size:11px; color:var(--text-muted); cursor:pointer;
+  display:flex; align-items:center; gap:5px; border-bottom:2px solid transparent;
+}
+.bottom-tab.active { color:var(--text-primary); border-bottom-color:var(--accent); }
+.terminal-body {
+  flex:1; overflow-y:auto; padding:8px 14px;
+  font-family:'SF Mono',Monaco,Consolas,monospace; font-size:12px; line-height:1.7; color:var(--green);
+}
+.term-prompt { color:var(--accent); }
+.term-output { color:var(--text-secondary); }
+
+/* ===== Status Bar ===== */
+.statusbar {
+  height:24px; background:#0c1017; border-top:1px solid var(--border);
+  display:flex; align-items:center; padding:0 10px; font-size:11px; gap:14px; flex-shrink:0;
+}
+.st-item { display:flex; align-items:center; gap:4px; color:var(--text-muted); }
+.st-dot { width:7px; height:7px; border-radius:50%; }
+.st-dot.on { background:var(--green); }
+.st-spacer { flex:1; }
+.st-clickable { cursor:pointer; padding:1px 6px; border-radius:3px; }
+.st-clickable:hover { background:var(--bg-hover); color:var(--text-secondary); }
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.55); display:none;
+  align-items:center; justify-content:center; z-index:1000;
+}
+.modal-overlay.show { display:flex; }
+.modal {
+  background:var(--bg-secondary); border:1px solid var(--border-light);
+  border-radius:12px; padding:24px; width:440px; max-width:90vw; animation:slideUp .2s ease;
+}
+.modal-title { font-size:15px; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+.modal-desc { font-size:12.5px; color:var(--text-secondary); line-height:1.7; margin-bottom:20px; }
+.modal-desc ul { padding-left:18px; margin-top:6px; }
+.modal-desc code { background:var(--bg-cell); padding:1px 5px; border-radius:3px; font-size:11.5px; color:var(--purple); }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; }
+.modal-btn { padding:7px 18px; border-radius:6px; font-size:12.5px; font-weight:600; cursor:pointer; border:none; }
+.modal-btn-ghost { background:var(--border); color:var(--text-secondary); }
+.modal-btn-ghost:hover { background:#4b5563; }
+.modal-btn-primary { background:var(--accent); color:#fff; }
+.modal-btn-primary:hover { background:var(--accent-hover); }
+
+/* Syntax */
+.kw { color:#c084fc; } .fn { color:#60a5fa; } .str { color:#86efac; }
+.num { color:#fbbf24; } .cm { color:#6b7280; font-style:italic; }
+.op { color:#f472b6; } .bi { color:#67e8f9; }
+
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes slideUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes dotPulse { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
+.typing-dots { display:inline-flex; gap:3px; padding:4px 0; }
+.typing-dots span { width:5px; height:5px; border-radius:50%; background:var(--text-muted); animation:dotPulse 1.4s infinite both; }
+.typing-dots span:nth-child(2) { animation-delay:.2s; }
+.typing-dots span:nth-child(3) { animation-delay:.4s; }
+</style>
+</head>
+<body>
+
+<div class="app">
+<!-- ===== Menu Bar ===== -->
+<div class="menubar">
+  <span class="menu-item" style="font-weight:700;background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">AILab</span>
+  <span class="menu-item">File</span>
+  <span class="menu-item">Edit</span>
+  <span class="menu-item">View</span>
+  <span class="menu-item">Run</span>
+  <span class="menu-item">Kernel</span>
+  <span class="menu-item">Tabs</span>
+  <span class="menu-item">Settings</span>
+  <span class="menu-item">Help</span>
+  <span class="menubar-spacer"></span>
+  <span class="menubar-title">Last saved: 2 min ago</span>
+</div>
+
+<!-- ===== Toolbar ===== -->
+<div class="toolbar">
+  <button class="tb-btn" title="Save"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" title="Cut"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></button>
+  <button class="tb-btn" title="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+  <button class="tb-btn" title="Paste"><svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" title="Run Cell" style="color:var(--green)"><svg viewBox="0 0 24 24" style="fill:var(--green);stroke:none"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Run</span></button>
+  <button class="tb-btn" title="Run All"><svg viewBox="0 0 24 24"><polygon points="5 3 15 12 5 21" style="fill:currentColor;stroke:none"/><line x1="19" y1="3" x2="19" y2="21" style="stroke:currentColor;stroke-width:2"/></svg></button>
+  <button class="tb-btn" title="Stop"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" style="fill:var(--red);stroke:none"/></svg></button>
+  <button class="tb-btn" title="Restart Kernel"><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg><span>Restart</span></button>
+  <div class="tb-sep"></div>
+  <select class="tb-select"><option>Code</option><option>Markdown</option><option>Raw</option></select>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" title="Add Cell"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+  <button class="tb-btn" title="Move Up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg></button>
+  <button class="tb-btn" title="Move Down"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" title="Undo"><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg></button>
+  <button class="tb-btn" title="Redo"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.13-9.36L23 10"/></svg></button>
+
+  <span class="tb-spacer"></span>
+
+  <!-- Kernel Status -->
+  <div class="tb-kernel">
+    <span class="tb-kernel-dot"></span>
+    <span>Python 3.10 | Idle</span>
+  </div>
+
+  <!-- Resource Pill -->
+  <div class="res-pill" id="resPill">
+    <div class="res-metric">
+      <span class="res-dot" id="ramDot" style="background:var(--green)"></span>
+      <span class="res-label">RAM</span>
+      <span class="res-val" id="ramPct" style="color:var(--green)">19%</span>
+    </div>
+    <div class="res-metric">
+      <span class="res-dot" id="gpuDot" style="background:var(--orange)"></span>
+      <span class="res-label">GPU</span>
+      <span class="res-val" id="gpuPct" style="color:var(--orange)">85%</span>
+    </div>
+    <!-- Hover Popover -->
+    <div class="res-popover">
+      <div class="res-pop-title">System Resources</div>
+      <div class="res-pop-row">
+        <span>CPU</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="res-pop-bar-bg"><div class="res-pop-bar" id="cpuBar" style="width:35%;background:var(--accent)"></div></div>
+          <span class="res-pop-val" id="cpuPopVal" style="color:var(--accent)">35%</span>
+        </div>
+      </div>
+      <div class="res-pop-row">
+        <span>RAM</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="res-pop-bar-bg"><div class="res-pop-bar" id="ramBar" style="width:19%;background:var(--green)"></div></div>
+          <span class="res-pop-val" id="ramPopVal" style="color:var(--green)">12.4 / 64 GB</span>
+        </div>
+      </div>
+      <div class="res-pop-row">
+        <span style="display:flex;align-items:center;gap:4px">GPU 0 <span style="font-size:10px;color:var(--text-muted);font-weight:400">A100-80G</span></span>
+        <span class="res-pop-val" id="gpuUtilVal" style="color:var(--orange)">87%</span>
+      </div>
+      <div class="res-pop-row">
+        <span>VRAM</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="res-pop-bar-bg"><div class="res-pop-bar" id="vramBar" style="width:85%;background:var(--orange)"></div></div>
+          <span class="res-pop-val" id="vramPopVal" style="color:var(--orange)">68.2 / 80 GB</span>
+        </div>
+      </div>
+      <div style="margin-top:8px">
+        <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">VRAM History (30s)</div>
+        <div class="res-graph" id="vramGraph"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Main Area ===== -->
+<div class="main-area">
+
+<!-- Activity Bar -->
+<div class="activity-bar">
+  <button class="act-btn" onclick="switchPanel('ai',this)" id="actAi" title="AI Assistant">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    <span class="badge">3</span>
+  </button>
+  <button class="act-btn active" onclick="switchPanel('files',this)" title="File Browser">
+    <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+  </button>
+  <button class="act-btn" onclick="switchPanel('search',this)" title="Search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  </button>
+  <button class="act-btn" onclick="switchPanel('variables',this)" title="Variables">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+  </button>
+  <button class="act-btn" onclick="switchPanel('extensions',this)" title="Extensions">
+    <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+  </button>
+  <span class="act-spacer"></span>
+  <button class="act-btn" title="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+  </button>
+</div>
+
+<!-- Left Panel -->
+<div class="left-panel" id="leftPanel">
+
+  <!-- === AI Chat === -->
+  <div id="panel-ai" style="display:none;height:100%;display:none">
+    <div class="panel-header">
+      <span class="panel-title" style="color:var(--purple)">AI Assistant</span>
+      <div class="panel-header-actions">
+        <button class="panel-icon-btn" title="Clear Chat" onclick="clearChat()"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+      </div>
+    </div>
+    <div class="chat-panel">
+      <!-- Chat History Selector -->
+      <div class="chat-history-bar">
+        <select class="chat-history-select" id="chatHistorySelect" onchange="loadChat(this.value)">
+          <option value="chat-1">Anomaly Detection Plan</option>
+          <option value="chat-2">Data Cleaning Help</option>
+          <option value="chat-3">Model Training Q&A</option>
+        </select>
+        <button class="chat-new-btn" title="New Chat" onclick="newChat()">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <!-- Messages -->
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg">
+          <div class="chat-avatar ai">AI</div>
+          <div class="chat-bubble">
+            <div class="chat-sender">AILab Assistant</div>
+            <div class="chat-text">Hi! I can see your notebook context, files, and kernel state. Ask me anything or describe what you'd like to build.</div>
+          </div>
+        </div>
+        <div class="chat-msg">
+          <div class="chat-avatar user">U</div>
+          <div class="chat-bubble">
+            <div class="chat-sender">You</div>
+            <div class="chat-text">Analyze all CSVs in /data, do anomaly detection and visualize</div>
+          </div>
+        </div>
+        <div class="chat-msg">
+          <div class="chat-avatar ai">AI</div>
+          <div class="chat-bubble">
+            <div class="chat-sender">AILab Assistant</div>
+            <div class="chat-text">
+              I've scanned your environment. Here's my plan:<br><br>
+              <div class="plan-item"><span class="plan-num">1.</span> <strong>Data Loading</strong> — Read 3 CSVs in <code>/data</code></div>
+              <div class="plan-item"><span class="plan-num">2.</span> <strong>Preprocessing</strong> — Handle nulls, normalize</div>
+              <div class="plan-item"><span class="plan-num">3.</span> <strong>IsolationForest</strong> — contamination=0.05</div>
+              <div class="plan-item"><span class="plan-num">4.</span> <strong>Visualization</strong> — Scatter + histogram</div>
+              <div class="plan-item"><span class="plan-num">5.</span> <strong>Export</strong> — Save to <code>results/</code></div>
+              <br>
+              <div style="display:flex;gap:5px;margin-top:2px">
+                <button onclick="insertPlanCells()" style="padding:3px 10px;background:var(--accent);border:none;border-radius:5px;color:#fff;font-size:10.5px;cursor:pointer;font-weight:600">Insert All Cells</button>
+                <button style="padding:3px 10px;background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--text-secondary);font-size:10.5px;cursor:pointer">Modify</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Input Area -->
+      <div class="chat-input-area">
+        <div class="chat-context-bar">
+          <span class="chat-ctx-tag">demo_analysis.ipynb</span>
+          <span class="chat-ctx-tag">Python 3.10</span>
+          <span class="chat-ctx-tag">5 vars</span>
+        </div>
+        <div class="chat-input-wrap">
+          <textarea id="chatInput" class="chat-input" rows="1" placeholder="Ask AI or describe your goal..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+          <button class="chat-send-btn" onclick="sendChat()"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- === File Browser === -->
+  <div id="panel-files">
+    <div class="panel-header">
+      <span class="panel-title">Explorer</span>
+      <div class="panel-header-actions">
+        <button class="panel-icon-btn" title="New File"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></button>
+        <button class="panel-icon-btn" title="New Folder"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg></button>
+        <button class="panel-icon-btn" title="New Terminal" onclick="toggleTerminal()"><svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>
+        <button class="panel-icon-btn" title="Refresh"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.13-9.36L23 10"/></svg></button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="file-tree" id="fileTree"></div>
+    </div>
+  </div>
+
+  <!-- === Search === -->
+  <div id="panel-search" style="display:none">
+    <div class="panel-header"><span class="panel-title">Search</span></div>
+    <div class="panel-body" style="padding:12px">
+      <input type="text" placeholder="Search files..." style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:7px 10px;border-radius:6px;font-size:12px;outline:none;">
+      <div style="margin-top:16px;font-size:12px;color:var(--text-muted);text-align:center;">Type to search across files</div>
+    </div>
+  </div>
+
+  <!-- === Variables === -->
+  <div id="panel-variables" style="display:none">
+    <div class="panel-header"><span class="panel-title">Variables</span></div>
+    <div class="panel-body" style="padding:0">
+      <table style="width:100%;font-size:11.5px;border-collapse:collapse">
+        <thead><tr style="color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border);background:var(--bg-secondary)">
+          <th style="padding:6px 10px;font-weight:600">Name</th><th style="font-weight:600">Type</th><th style="font-weight:600;text-align:right;padding-right:10px">Value</th>
+        </tr></thead>
+        <tbody id="varTable" style="color:var(--text-secondary)"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- === Extensions === -->
+  <div id="panel-extensions" style="display:none">
+    <div class="panel-header"><span class="panel-title">Extensions</span></div>
+    <div class="panel-body" style="padding:12px">
+      <div style="font-size:12px;color:var(--green);margin-bottom:12px">Installed (3)</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:2.2;">
+        <div>ailab-self-healing <span style="color:var(--text-muted)">v1.0.0</span></div>
+        <div>ailab-planner <span style="color:var(--text-muted)">v1.0.0</span></div>
+        <div>ailab-resource-monitor <span style="color:var(--text-muted)">v1.0.0</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Notebook Wrapper ===== -->
+<div class="notebook-wrapper">
+  <div class="tab-bar">
+    <div class="tab-item active">
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:var(--orange);fill:none;stroke-width:1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      demo_analysis.ipynb
+      <span class="tab-close">&times;</span>
+    </div>
+    <div class="tab-item">
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:var(--green);fill:none;stroke-width:1.8"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      utils.py
+      <span class="tab-close">&times;</span>
+    </div>
+  </div>
+
+  <div class="notebook" id="notebook">
+    <div class="cell" onclick="activateCell(this)">
+      <div class="cell-gutter"></div>
+      <div class="cell-body"><div class="cell-md"><h2>CSV Anomaly Detection Pipeline</h2><p>Load data from /data, preprocess and run IsolationForest for anomaly detection.</p></div></div>
+    </div>
+    <div class="cell" onclick="activateCell(this)">
+      <div class="cell-gutter">[1]:</div>
+      <div class="cell-body">
+        <div class="cell-code"><span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> matplotlib.pyplot <span class="kw">as</span> plt
+
+df <span class="op">=</span> pd.<span class="fn">read_csv</span>(<span class="str">'/data/train.csv'</span>)
+<span class="fn">print</span>(<span class="str">f'Loaded {len(df)} rows, {len(df.columns)} columns'</span>)</div>
+        <div class="cell-output">Loaded 50000 rows, 14 columns</div>
+      </div>
+    </div>
+    <div class="cell active" onclick="activateCell(this)">
+      <div class="cell-gutter">[2]:</div>
+      <div class="cell-body">
+        <div class="cell-code"><span class="kw">from</span> sklearn.ensemble <span class="kw">import</span> IsolationForest
+<span class="kw">from</span> xgboost <span class="kw">import</span> XGBClassifier
+
+model <span class="op">=</span> IsolationForest(<span class="var">contamination</span><span class="op">=</span><span class="num">0.05</span>)
+model.<span class="fn">fit</span>(df.<span class="fn">select_dtypes</span>(<span class="var">include</span><span class="op">=</span><span class="str">'number'</span>))</div>
+        <div class="cell-output cell-output-error">
+<span class="err-trace">---------------------------------------------------------------------------</span>
+<span class="err-name">ModuleNotFoundError</span>                       Traceback (most recent call last)
+<span class="err-trace">Cell In[2], line 2
+      1 from sklearn.ensemble import IsolationForest
+----&gt; 2 from xgboost import XGBClassifier
+</span>
+<span style="color:var(--red)">ModuleNotFoundError: No module named 'xgboost'</span></div>
+        <div class="ai-fix-bar" id="aiFix1">
+          <button class="ai-fix-btn" id="aiFixBtn" onclick="triggerAiFix()">AI Fix</button>
+        </div>
+      </div>
+    </div>
+    <div id="fixResult"></div>
+    <div class="cell" onclick="activateCell(this)">
+      <div class="cell-gutter">[3]:</div>
+      <div class="cell-body">
+        <div class="cell-code"><span class="cm"># Visualize results</span>
+fig, axes <span class="op">=</span> plt.<span class="fn">subplots</span>(<span class="num">1</span>, <span class="num">2</span>, <span class="var">figsize</span><span class="op">=</span>(<span class="num">14</span>, <span class="num">5</span>))
+axes[<span class="num">0</span>].<span class="fn">scatter</span>(df.index, scores, <span class="var">c</span><span class="op">=</span>colors, <span class="var">alpha</span><span class="op">=</span><span class="num">0.5</span>, <span class="var">s</span><span class="op">=</span><span class="num">6</span>)
+axes[<span class="num">1</span>].<span class="fn">hist</span>(scores, <span class="var">bins</span><span class="op">=</span><span class="num">50</span>, <span class="var">color</span><span class="op">=</span><span class="str">'steelblue'</span>)
+plt.<span class="fn">tight_layout</span>()
+plt.<span class="fn">show</span>()</div>
+      </div>
+    </div>
+    <div class="cell" onclick="activateCell(this)">
+      <div class="cell-gutter">[ ]:</div>
+      <div class="cell-body">
+        <div class="cell-code"><span class="cm"># Export annotated results</span>
+df_out <span class="op">=</span> df.<span class="fn">copy</span>()
+df_out[<span class="str">'anomaly'</span>] <span class="op">=</span> predictions
+df_out[<span class="str">'score'</span>] <span class="op">=</span> scores
+df_out.<span class="fn">to_csv</span>(<span class="str">'results/anomaly_output.csv'</span>, <span class="var">index</span><span class="op">=</span><span class="kw">False</span>)
+<span class="fn">print</span>(<span class="str">'Saved.'</span>)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Panel -->
+  <div class="bottom-panel" id="bottomPanel">
+    <div class="bottom-tabs">
+      <div class="bottom-tab active">Terminal 1</div>
+      <div class="bottom-tab">Problems</div>
+      <div class="bottom-tab">Output</div>
+      <button class="panel-icon-btn" style="margin-left:auto;margin-right:4px" onclick="toggleTerminal()" title="Close">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="terminal-body">
+      <div><span class="term-prompt">user@ailab:~/project$</span> nvidia-smi</div>
+      <div class="term-output">Sun Mar 30 10:30:00 2026</div>
+      <div class="term-output">| GPU 0: NVIDIA A100-SXM4-80GB | 68200MiB / 81920MiB | 87% |</div>
+      <div style="margin-top:4px"><span class="term-prompt">user@ailab:~/project$</span> <span style="animation:blink .8s infinite">|</span></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- main-area -->
+
+<!-- Status Bar -->
+<div class="statusbar">
+  <div class="st-item"><span class="st-dot on"></span> Python 3.10.12</div>
+  <span class="st-spacer"></span>
+  <span class="st-clickable" onclick="toggleTerminal()">Terminal</span>
+  <span class="st-item">Ln 1, Col 1</span>
+  <span class="st-item">UTF-8</span>
+  <span class="st-item">Spaces: 4</span>
+</div>
+</div><!-- app -->
+
+<!-- Alert Modal -->
+<div class="modal-overlay" id="alertModal">
+  <div class="modal">
+    <div class="modal-title"><span style="color:var(--red)">&#9888;</span> GPU VRAM Alert</div>
+    <div class="modal-desc">
+      GPU 0 VRAM usage has reached <strong style="color:var(--red)">92%</strong> (73.6 / 80.0 GB).<br>
+      AI detected optimization opportunities:
+      <ul>
+        <li>Large tensor <code>model_outputs</code> (~18GB) can be released</li>
+        <li>DataLoader <code>batch_size=128</code> can be reduced to 32</li>
+        <li>CUDA cache can be cleared with <code>torch.cuda.empty_cache()</code></li>
+      </ul>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-ghost" onclick="closeModal()">Dismiss</button>
+      <button class="modal-btn modal-btn-primary" onclick="acceptOptimize()">Let AI Optimize</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== File Tree ===== */
+const FS = [
+  { name:'project', type:'dir', open:true, children:[
+    { name:'data', type:'dir', open:true, children:[
+      { name:'train.csv', type:'file', ext:'csv', size:'12.4 MB' },
+      { name:'test.csv', type:'file', ext:'csv', size:'3.1 MB' },
+      { name:'labels.csv', type:'file', ext:'csv', size:'512 KB' },
+    ]},
+    { name:'models', type:'dir', children:[
+      { name:'checkpoint.pt', type:'file', ext:'pt', size:'450 MB' },
+      { name:'config.yaml', type:'file', ext:'yaml', size:'2 KB' },
+    ]},
+    { name:'results', type:'dir', children:[] },
+    { name:'demo_analysis.ipynb', type:'file', ext:'ipynb', size:'24 KB' },
+    { name:'utils.py', type:'file', ext:'py', size:'3.2 KB' },
+    { name:'requirements.txt', type:'file', ext:'txt', size:'340 B' },
+    { name:'README.md', type:'file', ext:'md', size:'1.8 KB' },
+    { name:'.gitignore', type:'file', ext:'', size:'120 B' },
+  ]}
+];
+const FILE_COLORS = { csv:'#22c55e', py:'#3b82f6', ipynb:'#f59e0b', yaml:'#a855f7', pt:'#ef4444', md:'#9ca3af', txt:'#9ca3af' };
+
+function renderFileTree(nodes, container, depth=0) {
+  nodes.forEach(n => {
+    const div = document.createElement('div');
+    div.className = 'file-item' + (n.name==='demo_analysis.ipynb'?' selected':'');
+    div.style.paddingLeft = (12+depth*16)+'px';
+    if (n.type==='dir') {
+      const isOpen = n.open;
+      div.innerHTML = `<span class="file-arrow ${isOpen?'open':''}"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+        <span class="file-icon"><svg viewBox="0 0 24 24" style="stroke:${isOpen?'var(--accent)':'var(--text-muted)'};fill:${isOpen?'rgba(59,130,246,.15)':'none'};stroke-width:1.6"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></span>
+        <span class="file-name">${n.name}</span>`;
+      container.appendChild(div);
+      const cc = document.createElement('div');
+      cc.className = 'file-children'+(isOpen?' open':'');
+      container.appendChild(cc);
+      div.onclick = () => { div.querySelector('.file-arrow').classList.toggle('open'); cc.classList.toggle('open'); };
+      if (n.children) renderFileTree(n.children, cc, depth+1);
+    } else {
+      const c = FILE_COLORS[n.ext]||'var(--text-muted)';
+      div.innerHTML = `<span style="width:16px"></span>
+        <span class="file-icon"><svg viewBox="0 0 24 24" style="stroke:${c};fill:none;stroke-width:1.6"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+        <span class="file-name">${n.name}</span><span class="file-size">${n.size||''}</span>`;
+      container.appendChild(div);
+      div.onclick = () => { document.querySelectorAll('.file-item.selected').forEach(i=>i.classList.remove('selected')); div.classList.add('selected'); };
+    }
+  });
+}
+renderFileTree(FS, document.getElementById('fileTree'));
+
+/* Variables */
+const VARS = [
+  { name:'df', type:'DataFrame', val:'50000 x 14' },
+  { name:'model', type:'IsolationForest', val:'fitted' },
+  { name:'np', type:'module', val:'numpy' },
+  { name:'pd', type:'module', val:'pandas' },
+  { name:'plt', type:'module', val:'matplotlib' },
+];
+const vt = document.getElementById('varTable');
+VARS.forEach(v => {
+  const tr = document.createElement('tr');
+  tr.style.borderBottom='1px solid var(--border)';
+  tr.innerHTML=`<td style="padding:6px 10px;font-family:monospace;color:var(--cyan)">${v.name}</td><td>${v.type}</td><td style="text-align:right;padding-right:10px;color:var(--text-muted)">${v.val}</td>`;
+  vt.appendChild(tr);
+});
+
+/* ===== Panel Switching ===== */
+const ALL_PANELS = ['ai','files','search','variables','extensions'];
+
+function switchPanel(id, btn) {
+  document.querySelectorAll('.act-btn').forEach(b => { b.classList.remove('active'); b.classList.remove('active-ai'); });
+  if (id==='ai') btn.classList.add('active-ai');
+  else btn.classList.add('active');
+
+  ALL_PANELS.forEach(p => {
+    const el = document.getElementById('panel-'+p);
+    if (el) el.style.display = p===id ? '' : 'none';
+  });
+  // Ensure left panel visible
+  document.getElementById('leftPanel').style.display = '';
+}
+
+// Init: show files by default, hide ai
+document.getElementById('panel-ai').style.display = 'none';
+
+function activateCell(c) {
+  document.querySelectorAll('.cell').forEach(x=>x.classList.remove('active'));
+  c.classList.add('active');
+}
+
+/* ===== AI Fix ===== */
+function triggerAiFix() {
+  const btn = document.getElementById('aiFixBtn');
+  btn.textContent='Analyzing...'; btn.classList.add('loading');
+  setTimeout(()=>{
+    btn.classList.remove('loading'); btn.textContent='AI Fix';
+    const bar = document.getElementById('aiFix1');
+    if(!bar.querySelector('.ai-fix-info')) {
+      const s=document.createElement('span'); s.className='ai-fix-info';
+      s.textContent='Missing xgboost — need pip install'; bar.appendChild(s);
+    }
+    document.getElementById('fixResult').innerHTML=`
+      <div class="cell ai-gen" style="animation:fadeIn .4s">
+        <div class="cell-gutter" style="color:var(--purple)">[*]:</div>
+        <div class="cell-body">
+          <div style="padding:8px 14px 0"><span class="ai-badge">AI GENERATED</span></div>
+          <div class="cell-code"><span class="cm"># Fix: install missing xgboost</span>
+<span class="op">!</span>pip install xgboost <span class="op">-</span>q
+
+<span class="kw">from</span> sklearn.ensemble <span class="kw">import</span> IsolationForest
+<span class="kw">from</span> xgboost <span class="kw">import</span> XGBClassifier
+
+model <span class="op">=</span> IsolationForest(<span class="var">contamination</span><span class="op">=</span><span class="num">0.05</span>)
+model.<span class="fn">fit</span>(df.<span class="fn">select_dtypes</span>(<span class="var">include</span><span class="op">=</span><span class="str">'number'</span>))</div>
+          <div style="padding:6px 14px 10px;display:flex;gap:6px">
+            <button class="ai-fix-btn" style="font-size:11px;padding:4px 12px" onclick="runFix(this)">Run Fix</button>
+            <button style="padding:4px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:11px;cursor:pointer">Dismiss</button>
+          </div>
+        </div>
+      </div>`;
+    // Auto-switch to AI panel & add message
+    switchPanel('ai', document.getElementById('actAi'));
+    addChatMsg('ai','I detected <code>ModuleNotFoundError</code> for xgboost. Fix cell inserted — click <strong>Run Fix</strong> to execute.');
+  },1800);
+}
+function runFix(btn) {
+  btn.textContent='Running...'; btn.classList.add('loading');
+  setTimeout(()=>{
+    const cell=btn.closest('.cell');
+    cell.querySelector('.cell-gutter').textContent='[2]:';
+    btn.parentElement.innerHTML=`<div class="cell-output" style="color:var(--green);padding:6px 14px">Successfully installed xgboost-2.0.3<br>IsolationForest fitted on 50000 samples, 12 features.</div>`;
+  },2000);
+}
+
+/* ===== Chat ===== */
+function addChatMsg(role, html) {
+  const c=document.getElementById('chatMessages');
+  const isAi=role==='ai';
+  const div=document.createElement('div');
+  div.className='chat-msg';
+  div.innerHTML=`<div class="chat-avatar ${isAi?'ai':'user'}">${isAi?'AI':'U'}</div>
+    <div class="chat-bubble"><div class="chat-sender">${isAi?'AILab Assistant':'You'}</div>
+    <div class="chat-text">${html}</div></div>`;
+  c.appendChild(div);
+  c.scrollTop=c.scrollHeight;
+}
+
+function sendChat() {
+  const input=document.getElementById('chatInput');
+  const text=input.value.trim();
+  if(!text) return;
+  input.value='';
+  addChatMsg('user', text);
+  const c=document.getElementById('chatMessages');
+  const typing=document.createElement('div');
+  typing.className='chat-msg'; typing.id='typingIndicator';
+  typing.innerHTML=`<div class="chat-avatar ai">AI</div><div class="chat-bubble"><div class="chat-sender">AILab Assistant</div><div class="chat-text"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`;
+  c.appendChild(typing); c.scrollTop=c.scrollHeight;
+  setTimeout(()=>{
+    typing.remove();
+    const r=['I can help with that. Let me analyze your notebook context and generate code cells.',
+      'Based on your kernel state, you have <code>df</code> with 50,000 rows. I\'ll work with that.',
+      'Here\'s what I suggest: check data distribution first, then apply the transformation. Want me to generate the cells?'];
+    addChatMsg('ai', r[Math.floor(Math.random()*r.length)]);
+  }, 1500+Math.random()*1000);
+}
+
+let chatCounter = 3;
+function newChat() {
+  chatCounter++;
+  const sel = document.getElementById('chatHistorySelect');
+  const opt = document.createElement('option');
+  opt.value = 'chat-'+chatCounter;
+  opt.textContent = 'New Chat ' + chatCounter;
+  sel.insertBefore(opt, sel.firstChild);
+  sel.value = opt.value;
+  clearChat();
+}
+
+function loadChat(chatId) {
+  // Simulate loading different chat history
+  const msgs = document.getElementById('chatMessages');
+  msgs.innerHTML = '';
+  addChatMsg('ai', 'Chat session loaded. How can I help you?');
+}
+
+function clearChat() {
+  const msgs = document.getElementById('chatMessages');
+  msgs.innerHTML = '';
+  addChatMsg('ai', 'Hi! I can see your notebook context, files, and kernel state. Ask me anything.');
+}
+
+function insertPlanCells() {
+  const nb=document.getElementById('notebook');
+  nb.insertAdjacentHTML('beforeend',`
+    <div class="cell ai-gen" style="animation:fadeIn .3s"><div class="cell-gutter"></div><div class="cell-body"><div class="cell-md"><div><span class="ai-badge">AI PLAN</span></div><h2>Step 1: Data Loading</h2></div></div></div>
+    <div class="cell ai-gen" style="animation:fadeIn .3s"><div class="cell-gutter" style="color:var(--purple)">[ ]:</div><div class="cell-body"><div class="cell-code"><span class="kw">import</span> glob, pandas <span class="kw">as</span> pd
+
+csv_files <span class="op">=</span> glob.<span class="fn">glob</span>(<span class="str">'/data/**/*.csv'</span>, <span class="var">recursive</span><span class="op">=</span><span class="kw">True</span>)
+df <span class="op">=</span> pd.<span class="fn">concat</span>([pd.<span class="fn">read_csv</span>(f) <span class="kw">for</span> f <span class="kw">in</span> csv_files], <span class="var">ignore_index</span><span class="op">=</span><span class="kw">True</span>)
+<span class="fn">print</span>(<span class="str">f'Loaded {len(csv_files)} files, {len(df)} rows'</span>)
+df.<span class="fn">head</span>()</div></div></div>`);
+  nb.scrollTop=nb.scrollHeight;
+}
+
+function toggleTerminal() { document.getElementById('bottomPanel').classList.toggle('open'); }
+
+/* ===== Resource Monitor ===== */
+let gpu=85, ram=19, cpu=35;
+let vramH = Array(20).fill(0).map(()=>70+Math.random()*20);
+
+function updateRes() {
+  gpu = Math.min(99, gpu+(Math.random()-.3)*2);
+  ram = Math.max(10, Math.min(55, ram+(Math.random()-.5)*3));
+  cpu = Math.max(5, Math.min(95, cpu+(Math.random()-.5)*8));
+  vramH.push(gpu); vramH.shift();
+
+  const gC = gpu>90?'var(--red)':gpu>70?'var(--orange)':'var(--green)';
+  const rC = ram>85?'var(--red)':'var(--green)';
+
+  // Toolbar pill
+  document.getElementById('gpuPct').textContent = gpu.toFixed(0)+'%';
+  document.getElementById('gpuPct').style.color = gC;
+  document.getElementById('gpuDot').style.background = gC;
+  document.getElementById('ramPct').textContent = ram.toFixed(0)+'%';
+  document.getElementById('ramPct').style.color = rC;
+  document.getElementById('ramDot').style.background = rC;
+
+  // Popover details
+  const gGb=(gpu/100*80).toFixed(1), rGb=(ram/100*64).toFixed(1);
+  document.getElementById('cpuBar').style.width = cpu+'%';
+  document.getElementById('cpuPopVal').textContent = cpu.toFixed(0)+'%';
+  document.getElementById('ramBar').style.width = ram+'%';
+  document.getElementById('ramBar').style.background = rC;
+  document.getElementById('ramPopVal').textContent = rGb+' / 64 GB';
+  document.getElementById('ramPopVal').style.color = rC;
+  document.getElementById('gpuUtilVal').textContent = Math.round(gpu*1.02)+'%';
+  document.getElementById('gpuUtilVal').style.color = gC;
+  document.getElementById('vramBar').style.width = gpu+'%';
+  document.getElementById('vramBar').style.background = gC;
+  document.getElementById('vramPopVal').textContent = gGb+' / 80 GB';
+  document.getElementById('vramPopVal').style.color = gC;
+
+  // VRAM graph
+  const gc = document.getElementById('vramGraph'); gc.innerHTML='';
+  vramH.forEach(v=>{
+    const b=document.createElement('div'); b.className='res-graph-bar';
+    b.style.height=Math.max(2,v/100*24)+'px';
+    b.style.background=v>90?'var(--red)':v>70?'var(--orange)':'var(--green)';
+    gc.appendChild(b);
+  });
+
+  // Alert
+  if(gpu>91 && !document.getElementById('alertModal').classList.contains('fired')){
+    document.getElementById('alertModal').classList.add('show','fired');
+  }
+}
+setInterval(updateRes,2000);
+updateRes();
+
+/* ===== Modal ===== */
+function closeModal(){ document.getElementById('alertModal').classList.remove('show'); }
+function acceptOptimize(){
+  closeModal();
+  const nb=document.getElementById('notebook');
+  nb.insertAdjacentHTML('beforeend',`
+    <div class="cell ai-gen" style="animation:fadeIn .4s">
+      <div class="cell-gutter" style="color:var(--purple)">[*]:</div>
+      <div class="cell-body">
+        <div style="padding:8px 14px 0"><span class="ai-badge">AI OPTIMIZE</span></div>
+        <div class="cell-code"><span class="cm"># AI: VRAM optimization</span>
+<span class="kw">import</span> torch
+
+<span class="cm"># 1. Clear cache</span>
+torch.cuda.<span class="fn">empty_cache</span>()
+
+<span class="cm"># 2. Remove large tensors</span>
+<span class="kw">del</span> model_outputs
+torch.cuda.<span class="fn">empty_cache</span>()
+
+<span class="cm"># 3. Reduce batch_size (128 → 32)</span>
+train_loader <span class="op">=</span> DataLoader(dataset, <span class="var">batch_size</span><span class="op">=</span><span class="num">32</span>, <span class="var">num_workers</span><span class="op">=</span><span class="num">4</span>)
+
+<span class="fn">print</span>(<span class="str">f'VRAM: {torch.cuda.memory_allocated()/1e9:.1f} GB'</span>)</div>
+      </div>
+    </div>`);
+  nb.scrollTop=nb.scrollHeight;
+  gpu=52;
+  // Switch to AI panel
+  switchPanel('ai', document.getElementById('actAi'));
+  addChatMsg('ai','VRAM optimization cell inserted. It will clear CUDA cache, delete <code>model_outputs</code> (~18GB), and reduce batch_size to 32.');
+}
+
+/* Blink cursor animation */
+const style = document.createElement('style');
+style.textContent = '@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}';
+document.head.appendChild(style);
+</script>
+</body>
+</html>

@@ -36,10 +36,3 @@ next-env.d.ts
 
 # Claude Code
 .claude/
-action.md
-agentcare.md
-change.md
-index.html
-monitor.md
-talk-to-action.md
-public/index.html
